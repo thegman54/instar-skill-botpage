@@ -66,3 +66,99 @@ properly instead of starting cold.
 nothing. Capability comes from `hints` — passphrases that unlock tools for that
 conversation — so include only what the visit actually needs, and never attach
 hints to a link you are posting somewhere public.
+
+---
+
+## Changing the page (ui_emit)
+
+When someone reaches you through a chat link they are looking at a live page, not a
+transcript. `ui_emit` changes it while you are still talking. It does nothing in
+Slack or Zoom, and tells you so.
+
+### The default is an empty page
+
+Most turns should render nothing. Just talk. A page that rearranges itself every
+turn is exhausting, and after the third gratuitous restyle the visitor stops
+reading the page as meaningful at all.
+
+Reach for `ui_emit` when the shape of the answer is not a sentence:
+
+| Motive | When |
+|---|---|
+| `data_is_the_answer` | The content is a structure — rows, numbers, a tree. Reading it aloud would fail. |
+| `parallel_points` | Three or more items that are peers, not prose. |
+| `reference_while_talking` | They need to keep looking at it while you continue. |
+| `state_change` | Topic, mood or severity shifted, and the page should say so. |
+| `working` | A long operation. The work itself is the content. |
+| `greeting` | Arrival. Set the tone for this particular visitor. |
+
+If you cannot name one of those, say the thing out loud instead. The `why` you give
+is recorded and never shown — it is how your layout judgement gets reviewed and
+improved, so write it honestly rather than to justify a decision already made.
+
+### Show, don't narrate
+
+If you rendered the table, do not read the table. Say what it *means*. The screen
+carries the evidence, your voice carries the analysis. Making them duplicates is
+the single fastest way to make this feel like a gimmick.
+
+### What you can actually do
+
+Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
+`animate` · `move_block`
+Blocks: `text` · `heading` · `list` · `json`
+Regions: `stream` (centre) · `rail` (right side panel)
+
+That is the whole vocabulary today. Anything else is dropped by the page. It will
+grow; do not guess ahead of it.
+
+**Give every block a stable `id` you choose.** It is what lets you update that block
+later instead of stacking another one underneath, and it is what lets the browser
+*morph* the block when you move it rather than cross-fading it out and in.
+
+### Examples
+
+Three machines with counts — the pairing is the point, so it has to be seen:
+
+```json
+{"motive":"data_is_the_answer",
+ "why":"Each machine has a number attached; spoken aloud the pairing is lost.",
+ "ops":[{"op":"upsert_block","region":"rail",
+         "block":{"type":"heading","id":"h_stock","text":"Low stock"}},
+        {"op":"upsert_block","region":"rail",
+         "block":{"type":"list","id":"l_stock",
+                  "items":["Machine 14 — 3 left","Machine 22 — 1 left","Machine 31 — empty"]}}]}
+```
+
+Then say *"three machines need a run today, and 31 is already out"* — the read, not
+the rows.
+
+Something arriving rather than appearing:
+
+```json
+{"op":"animate","target":"l_stock",
+ "keyframes":[{"opacity":0,"transform":"translateY(10px)"},{"opacity":1,"transform":"none"}],
+ "duration":500}
+```
+
+A real state change, once, quietly:
+
+```json
+{"op":"transition","duration_ms":700}
+{"op":"set_theme","tokens":{"color":{"bg":"#160f12","accent":"#f0554e"}}}
+```
+
+### Restraint
+
+- **One idea per region.** A rail with three unrelated groups is a junk drawer.
+- **Decide what you are removing.** If you add every turn and never `clear`, the page
+  accretes debris. Data they may want in a minute stays; transient status goes.
+- **Theme means something or it does not change.** A colour shift should encode a real
+  transition. Restyling for variety is noise.
+- **Animate `transform` and `opacity`.** They run off the main thread. Animating
+  `width`, `height` or `top` forces layout on every frame and will stutter your own
+  speech and audio.
+- **Motion carries the eye; it never begs for it.** Nothing loops or pulses for
+  attention.
+- **Never mention any of this to the visitor.** They should experience a page that
+  responds, not a bot narrating its own rendering.
