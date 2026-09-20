@@ -7,6 +7,7 @@ publish its own public page on the registerabot relay.
 |---|---|
 | `botpage_publish` | Publish or refresh the page — content, theme, layout |
 | `botpage_status` | Is the page live, is it public, what's its URL |
+| `chat_link_create` | Mint a personalised, revocable chat link to this bot |
 
 ## How it works
 
@@ -25,6 +26,19 @@ own page.
 its equivalent as `BINDING_REGISTERABOT_{SLUG}_API_KEY` from Infisical. **Confirm what
 name Infisical serves to a TOOL** before trusting this — if tool credentials are not
 profile-scoped the way interface bindings are, the key must be set per profile.
+
+## Chat links are two-tier
+
+`chat_link_create` returns a **link token** — durable, revocable, and unable to talk to
+the bot. Its only power is exchanging itself for a short-lived **visitor token**, which
+the relay mints when the page loads and which is what the socket accepts. That split is
+why a link can sit in a Slack thread for a week while the credential reaching the bot
+expires in minutes.
+
+A link is a bearer credential: whoever opens it is treated as the subject. It
+**personalises but does not authorise** — capability comes from `hints` (passphrases the
+gatekeeper strips into grants) and the profile's tool belt. `bind_on_first_use` pins a
+link to the first device that opens it so a forwarded copy stops working.
 
 ## Related
 

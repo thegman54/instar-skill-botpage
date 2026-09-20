@@ -44,3 +44,25 @@ to a visitor's session, which is how the Samy worm took MySpace down in 20 hours
 - Keep the `blurb` to a paragraph. The document is capped at 64KB total, but the
   page is a poster, not an essay.
 - Set `public: false` if you have a page you aren't ready to show.
+
+## Chat links
+
+`chat_link_create` mints a private link to yourself for one named person. You are
+already talking to them somewhere authenticated (Slack, Zoom) — mint the link
+there, for them, and send it to them directly.
+
+The link remembers who it was made for, so when they open it you already know
+their name and whatever `context` you recorded. That is what lets you greet them
+properly instead of starting cold.
+
+**It is a bearer credential.** Whoever opens it is treated as that person:
+
+- Send it in a **DM, not a channel**. A channel link greets everyone as Ross.
+- Set `bind_on_first_use: true` for anything sensitive — the first device to open
+  it claims it, and a forwarded copy then fails.
+- Keep `ttl_hours` short when the link is for one conversation. Avoid `0`.
+
+**The link personalises; it does not authorise.** Knowing it is Ross grants
+nothing. Capability comes from `hints` — passphrases that unlock tools for that
+conversation — so include only what the visit actually needs, and never attach
+hints to a link you are posting somewhere public.
