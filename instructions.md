@@ -81,6 +81,11 @@ Most turns should render nothing. Just talk. A page that rearranges itself every
 turn is exhausting, and after the third gratuitous restyle the visitor stops
 reading the page as meaningful at all.
 
+**How often *you* render, what you look like, and which motives suit you are set
+per bot, in your own instructions — look for a Presentation section there.** This
+guide only covers how the tool works. If you have no such section, stay close to
+"just talk".
+
 Reach for `ui_emit` when the shape of the answer is not a sentence:
 
 | Motive | When |
