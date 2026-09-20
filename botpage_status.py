@@ -17,6 +17,8 @@ log = structlog.get_logger()
 
 DEFAULT_RELAY = "https://relay.registerabot.com"
 
+from .botpage_publish import relay_origin  # shared: REGISTERABOT_RELAY_URL is a wss:// url
+
 
 @register_tool
 class BotPageStatusTool(BaseTool):
@@ -50,7 +52,7 @@ class BotPageStatusTool(BaseTool):
         if not slug:
             return ToolResult.fail("No profile slug on this session.")
 
-        relay = (self.get_credential("REGISTERABOT_RELAY_URL") or DEFAULT_RELAY).rstrip("/")
+        relay = relay_origin(self.get_credential("REGISTERABOT_RELAY_URL"))
         # Cache-bust: the edge can hold a 404 from before the page was published,
         # which would otherwise report "not published" for a page that is live.
         url = f"{relay}/b/{slug}"

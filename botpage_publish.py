@@ -28,6 +28,21 @@ log = structlog.get_logger()
 
 DEFAULT_RELAY = "https://relay.registerabot.com"
 
+
+def relay_origin(value: Optional[str]) -> str:
+    """The relay's HTTP origin.
+
+    REGISTERABOT_RELAY_URL is shared with the interface, which needs the SOCKET
+    url — it is set to wss://… in Infisical. Publishing is an HTTPS PUT, so the
+    scheme has to be normalised or the request goes nowhere with a confusing error.
+    """
+    url = (value or DEFAULT_RELAY).strip().rstrip("/")
+    if url.startswith("wss://"):
+        url = "https://" + url[len("wss://"):]
+    elif url.startswith("ws://"):
+        url = "http://" + url[len("ws://"):]
+    return url
+
 # Mirrors relay/src/bot-profile.ts. Kept in sync by hand; the relay is authoritative
 # and will reject anything these miss.
 LAYOUTS = {"bubbles", "poster", "comic"}
@@ -137,8 +152,23 @@ class BotPagePublishTool(BaseTool):
             "required": ["name"],
         }
 
+    def _binding_key(self) -> str:
+        """The per-bot key name.
+
+        Infisical holds one key per bot as BINDING_REGISTERABOT_{SLUG}_API_KEY —
+        the relay scopes a key to its own slug, so a shared key cannot publish for
+        another bot. The generic REGISTERABOT_API_KEY belongs to whichever bot
+        REGISTERABOT_BOT_SLUG names and 401s for everyone else.
+
+        credential_keys() is called after set_session_context() (executor.py: context
+        at 114, credentials at 150), so _profile_slug is available here.
+        """
+        slug = (self._profile_slug or "").strip().upper().replace("-", "_")
+        return f"BINDING_REGISTERABOT_{slug}_API_KEY" if slug else "REGISTERABOT_API_KEY"
+
     def credential_keys(self) -> list[str]:
-        return ["REGISTERABOT_API_KEY", "REGISTERABOT_RELAY_URL"]
+        # Only keys that exist — a missing one fails the tool before execute() runs.
+        return [self._binding_key(), "REGISTERABOT_RELAY_URL"]
 
     # --- validation -------------------------------------------------------
 
@@ -174,13 +204,14 @@ class BotPagePublishTool(BaseTool):
                 "and a page must be published for a specific bot."
             )
 
-        api_key = self.get_credential("REGISTERABOT_API_KEY")
+        key_name = self._binding_key()
+        api_key = self.get_credential(key_name)
         if not api_key:
             return ToolResult.fail(
-                "REGISTERABOT_API_KEY is not set for this bot. The relay scopes a key to "
-                "its own slug, so each bot needs its own key to publish its own page."
+                f"{key_name} is not set. The relay scopes a key to its own slug, so this "
+                f"bot needs its own key to publish its own page."
             )
-        relay = (self.get_credential("REGISTERABOT_RELAY_URL") or DEFAULT_RELAY).rstrip("/")
+        relay = relay_origin(self.get_credential("REGISTERABOT_RELAY_URL"))
 
         warnings: list[str] = []
         profile: dict[str, Any] = {"name": name}
@@ -237,8 +268,8 @@ class BotPagePublishTool(BaseTool):
 
         if resp.status_code == 401:
             return ToolResult.fail(
-                "The relay rejected the key (401). A bot's key only authorises its own "
-                f"slug — check the key set for '{slug}' is that bot's own key."
+                f"The relay rejected the key (401). {key_name} is not a valid key for "
+                f"bot '{slug}' — a key only authorises its own slug."
             )
         if resp.status_code != 200:
             return ToolResult.fail(
