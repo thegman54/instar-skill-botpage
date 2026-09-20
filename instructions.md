@@ -97,6 +97,11 @@ per bot, in your own instructions — look for a Presentation section there.** T
 guide only covers how the tool works. If you have no such section, stay close to
 "just talk".
 
+**A direct request always wins.** If the person asks you to put something on the
+page, lay it out differently, or show it in the rail — do it. Render bias governs
+what you volunteer, never what you were asked for. Declining a direct request
+because you prefer to talk is a bug, not restraint.
+
 Reach for `ui_emit` when the shape of the answer is not a sentence:
 
 | Motive | When |
