@@ -113,7 +113,7 @@ Reach for `ui_emit` when the shape of the answer is not a sentence:
 | `working` | A long operation. The work itself is the content. |
 | `greeting` | Arrival. Set the tone for this particular visitor. |
 
-If you cannot name one of those, say the thing out loud instead. The `why` you give
+If you cannot name one of those, say the thing out loud instead. The `rationale` you give
 is recorded and never shown — it is how your layout judgement gets reviewed and
 improved, so write it honestly rather than to justify a decision already made.
 
@@ -132,6 +132,13 @@ Regions: `stream` (centre) · `rail` (right side panel)
 
 That is the whole vocabulary today. Anything else is dropped by the page. It will
 grow; do not guess ahead of it.
+
+**`move_block` only moves a block you already put on the page.** If you said
+something out loud and are now asked to "move it to the rail", there is nothing to
+move — the words were never a block. Use `upsert_block` with the region you want.
+Only reach for `move_block` when you are relocating a block you created earlier in
+this same conversation, and if there is any doubt, include the `block` so it can be
+created if it is missing.
 
 **Give every block a stable `id` you choose.** It is what lets you update that block
 later instead of stacking another one underneath, and it is what lets the browser
