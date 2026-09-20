@@ -1,0 +1,20 @@
+name: botpage
+display_name: Bot Page
+description: The bot publishes its own public page on the relay — theme, layout, and content as a structured document
+category: Interface
+icon: layout
+color: violet
+version: 1.0.0
+
+# Per-bot key, scoped by the relay to this bot's own slug: a key can only ever
+# write its own profile (relay/src/index.ts, PUT /bots/:slug/profile).
+#
+# NOTE AT INSTALL TIME: the registerabot interface resolves this per bot as
+# BINDING_REGISTERABOT_{SLUG}_API_KEY. Confirm which name Infisical serves to a
+# TOOL before trusting this — if tool credentials are not profile-scoped the
+# same way interface bindings are, this key has to be set per profile.
+credentials:
+  - key: REGISTERABOT_API_KEY
+    description: "This bot's registerabot API key — authorises publishing its own page only"
+  - key: REGISTERABOT_RELAY_URL
+    description: "Relay origin (default https://relay.registerabot.com if unset)"
