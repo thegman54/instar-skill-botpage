@@ -127,8 +127,70 @@ the single fastest way to make this feel like a gimmick.
 
 Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
 `animate` · `move_block`
-Blocks: `text` · `heading` · `list` · `json`
-Regions: `stream` (centre) · `rail` (right side panel)
+Blocks: `text` · `heading` · `list` · `json` · `image` · `video`
+Regions:
+
+| Region | Where it is |
+|---|---|
+| `stream` | the centre, where the conversation lives |
+| `rail` | a panel down the right side |
+| `hero` | across the top, above the conversation |
+| `footer` | a quiet line along the bottom |
+| `layer` | free placement — floats over everything, stacked by `z` |
+
+**`layer` is the one to reach for when a thing should sit *beside* the conversation
+rather than inside it** — a readout in a corner, a figure that stays put while you
+keep talking. Give the block a `place`:
+
+```json
+{"op":"upsert_block","region":"layer",
+ "block":{"type":"list","id":"l_planets","items":["Mercury","Venus","Earth","Mars"],
+          "place":{"anchor":"top-right","x":"24px","y":"96px","w":"280px","z":5}}}
+```
+
+Anchors are `top`/`center`/`bottom` crossed with `left`/`center`/`right`. `z` stacks
+0–99, so several layers can overlap deliberately. Placement only applies in `layer`;
+in the other regions the page owns the layout.
+
+Two or three layers is a composition. Eight is a mess — and a visitor cannot move
+them out of the way.
+
+### Images and video
+
+```json
+{"op":"upsert_block","region":"stream",
+ "block":{"type":"image","id":"i_floor","asset":"floorplan",
+          "alt":"Second floor, four rooms off a central corridor",
+          "caption":"Second floor"}}
+```
+
+**You cannot point at any URL on the internet.** A source is one of two things:
+
+| | |
+|---|---|
+| `asset: "floorplan"` | something published for this bot |
+| `src: "/stream/abc"` | a path this site itself serves |
+
+An outside `https://` link is refused by the page. That is not red tape: a foreign
+host is handed the visitor's IP address and browser every single time the page
+repaints, and you would be the one who told it to.
+
+**Always write `alt`.** This page is voice-first. The visitor who cannot see the
+image is not a rare edge case here — they are the person you are most likely to be
+talking to. Write what the image *shows*, not what it is called.
+
+Video takes the same sources, plus `poster`, `loop`, `autoplay`, `muted` and
+`controls`:
+
+- **Controls are on unless you turn them off.** A video nobody can pause, on a page
+  with no mouse, is a trap. Turn them off for an ambient loop and nothing else.
+- **`autoplay` forces `muted`.** Every browser refuses to autoplay sound. If the
+  sound is the point, don't autoplay — render it and let them press play.
+- **Re-sending the same video id with the same source does not restart it.** You can
+  restyle or move a playing video and it keeps its place. Change the source to reset.
+
+Do not render an image to decorate an answer. Render one when the picture *is* the
+answer and describing it would be worse.
 
 That is the whole vocabulary today. Anything else is dropped by the page. It will
 grow; do not guess ahead of it.
@@ -160,6 +222,20 @@ Three machines with counts — the pairing is the point, so it has to be seen:
 
 Then say *"three machines need a run today, and 31 is already out"* — the read, not
 the rows.
+
+**Named effects.** You do not have to compose keyframes — ask for one by name:
+
+`fade_in` · `fade_out` · `dissolve` · `dissolve_out` · `slide_up` · `slide_down` ·
+`slide_left` · `slide_right` · `zoom_in` · `zoom_out` · `pop` · `bounce` · `shake` ·
+`pulse` · `flip` · `drift_in`
+
+```json
+{"op":"animate","target":"l_planets","effect":"dissolve"}
+```
+
+Each is built only from transform, opacity and filter, so all of them are smooth by
+construction. Pass your own `keyframes` instead when you want something the list
+does not cover. `duration` is optional — every effect has a sensible one.
 
 Something arriving rather than appearing:
 

@@ -17,6 +17,7 @@ from ops and block types the page knows how to render; anything else is dropped 
 the browser. That is what makes it safe to let a model drive a page at all.
 """
 
+import re
 from typing import Any, Optional
 
 import httpx
@@ -30,9 +31,58 @@ log = structlog.get_logger()
 
 # Mirrors the applyOps whitelist in relay/src/chat-surface.ts. The browser is
 # authoritative; these exist so a bad op fails here with an explanation.
-OPS = {"set_theme", "transition", "say", "clear", "upsert_block"}
-BLOCKS = {"text", "heading", "list", "json"}
-REGIONS = {"stream", "rail"}
+OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
+       "style", "animate", "move_block"}
+
+# Mirrors STYLE_OK in relay/src/chat-surface.ts. The security boundary in CSS is values
+# and selectors, not properties — a block only ever sets its own inline style, so no
+# selector is reachable. Values carrying url(), expression(), javascript: or a second
+# declaration are rejected at both ends.
+STYLE_PROPS = {
+    "color", "backgroundColor", "opacity", "filter", "transform", "transformOrigin",
+    "borderColor", "borderWidth", "borderStyle", "borderRadius", "boxShadow", "outline",
+    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft", "gap",
+    "width", "height", "maxWidth", "minWidth", "maxHeight", "minHeight",
+    "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign",
+    "textTransform", "textDecoration", "whiteSpace", "fontFamily",
+    "display", "flexDirection", "alignItems", "justifyContent", "flexWrap",
+    "position", "top", "right", "bottom", "left", "zIndex", "overflow", "mixBlendMode",
+    "backdropFilter", "background",
+}
+BAD_VALUE = re.compile(r"url\(|expression|javascript:|@import|</|\\|;\s*[a-z-]+\s*:", re.I)
+
+# transform and opacity are composited off the main thread. Animating layout properties
+# forces reflow, which visibly janks the text stream and the audio playing alongside it.
+CHEAP_ANIM = {"transform", "opacity", "filter", "backdropFilter"}
+
+# Named effects the page knows. Every one is built only from transform, opacity and
+# filter, so the safe, smooth options are also the easy ones to reach for.
+EFFECTS = [
+    "fade_in", "fade_out", "dissolve", "dissolve_out",
+    "slide_up", "slide_down", "slide_left", "slide_right",
+    "zoom_in", "zoom_out", "pop", "bounce", "shake", "pulse", "flip", "drift_in",
+]
+BLOCKS = {"text", "heading", "list", "json", "image", "video"}
+
+# Mirrors mediaSrc() in relay/src/chat-surface.ts. Media is the one block family that
+# makes the page fetch something, and a fetch is a disclosure: whatever host serves the
+# bytes learns the visitor's IP, user-agent and referrer every time the page repaints.
+# So a source is never a free-form URL. It is one of:
+#   asset='hero'       -> /b/{slug}/a/hero, published by the bot, already size-capped
+#   src='/stream/abc'  -> a same-origin path this relay serves (e.g. a media proxy)
+#   src='https://host' -> only if host is in MEDIA_ORIGINS
+#
+# MEDIA_ORIGINS is EMPTY on purpose, and the browser's copy is empty too. Adding a host
+# here alone changes nothing — the browser is authoritative and will still refuse it.
+# Both ends have to be edited together, which is the point: it makes "let the bot show
+# me anything off the internet" a deliberate act rather than a default.
+MEDIA_ORIGINS: set[str] = set()
+ASSET_OK = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+REGIONS = {"stream", "rail", "hero", "footer", "layer"}
+ANCHORS = {"top-left", "top-center", "top-right",
+           "center-left", "center", "center-right",
+           "bottom-left", "bottom-center", "bottom-right"}
 COLOR_TOKENS = {"bg", "ink", "soft", "accent", "surface"}
 FONTS = {"sans", "serif", "mono"}
 
@@ -58,9 +108,9 @@ class UiEmitTool(BaseTool):
     def description(self) -> str:
         return (
             "Change the page the visitor is looking at, right now, mid-sentence. "
-            "Set the theme, put text or a list or JSON into the main area or the side "
-            "rail, clear a region. Only works when the visitor is on a chat surface "
-            "(a /c/ link) — it does nothing in Slack or Zoom.\n\n"
+            "Set the theme, put text, a list, JSON, an image or a video into the main "
+            "area or the side rail, clear a region. Only works when the visitor is on a "
+            "chat surface (a /c/ link) — it does nothing in Slack or Zoom.\n\n"
             "You must give a motive: why THIS layout for THIS answer. If you cannot "
             "name one, say the thing out loud instead of rendering it.\n\n"
             "Do not render every turn. The default is to just talk. Show something "
@@ -90,11 +140,12 @@ class UiEmitTool(BaseTool):
                         "greeting — arrival, set the tone for this visitor."
                     ),
                 },
-                "why": {
+                "rationale": {
                     "type": "string",
                     "description": (
                         "One sentence, in your own words, on why this shape beats saying "
-                        "it. Recorded, never shown to the visitor."
+                        "it. Recorded, never shown to the visitor. (Named `rationale` "
+                        "because `why` is reserved by the tool layer for every tool.)"
                     ),
                 },
                 "ops": {
@@ -104,17 +155,53 @@ class UiEmitTool(BaseTool):
                         "  {op:'set_theme', tokens:{color:{bg,ink,soft,accent,surface}, font:'sans|serif|mono'}}\n"
                         "  {op:'transition', duration_ms:120-1200}\n"
                         "  {op:'say', text:'...'} — a line in the main area\n"
-                        "  {op:'clear', region:'stream'|'rail'}\n"
-                        "  {op:'upsert_block', region:'stream'|'rail', block:{...}}\n"
+                        "  {op:'clear', region:<region>}\n"
+                        "  {op:'upsert_block', region:<region>, block:{...}}\n"
+                        "     regions: stream (centre), rail (right panel), hero (top),\n"
+                        "              footer (bottom), layer (free placement, stacked)\n"
                         "     block types: {type:'text',id,text} {type:'heading',id,text}\n"
                         "                  {type:'list',id,items:[...],ordered?} {type:'json',id,value}\n"
+                        "                  {type:'image',id,asset|src,alt,caption?,fit?}\n"
+                        "                  {type:'video',id,asset|src,poster?,caption?,\n"
+                        "                                controls?,autoplay?,muted?,loop?}\n"
+                        "     MEDIA SOURCES are not free-form URLs. Either:\n"
+                        "       asset:'hero'      — an asset you published for this bot\n"
+                        "       src:'/path'       — a same-origin path this relay serves\n"
+                        "     An outside https:// URL is REFUSED unless allowlisted: a\n"
+                        "     foreign host would learn the visitor's IP every repaint.\n"
+                        "     image: always give alt. This page is voice-first, so the\n"
+                        "       visitor who cannot see it is the likeliest one here.\n"
+                        "     video: controls are ON unless you turn them off. autoplay\n"
+                        "       forces muted — browsers refuse autoplay with sound — so\n"
+                        "       if the sound matters, let them press play instead.\n"
+                        "       Re-sending the same video id with the same source keeps\n"
+                        "       playing; it does not restart. Change the source to reset.\n"
+                        "     any block may carry style:{...} — see below\n"
+                        "  {op:'style', target:'<block id>', style:{...}}\n"
+                        "     colour, spacing, radius, shadow, filter, type, layout.\n"
+                        "  {op:'animate', target:'<block id>', effect:'<name>',\n"
+                        "                 duration?, delay?, easing?, iterations?}\n"
+                        "     effects: fade_in fade_out dissolve dissolve_out slide_up\n"
+                        "              slide_down slide_left slide_right zoom_in zoom_out\n"
+                        "              pop bounce shake pulse flip drift_in\n"
+                        "     or pass your own keyframes:[{...},{...}] instead of effect\n"
+                        "     keyframes are plain objects. Animate transform and opacity:\n"
+                        "     they run off the main thread. Animating width/top/height\n"
+                        "     forces layout every frame and stutters your own speech.\n"
+                        "  {op:'move_block', target:'<block id>', region:<region>, place?:{...}}\n"
+                        "     the browser morphs it from the old position to the new one.\n"
+                        "  Free placement (region 'layer'): give the block a place object —\n"
+                        "     {anchor:'top-right', x:'24px', y:'80px', w:'320px', z:5}\n"
+                        "     anchors: top/center/bottom x left/center/right. z stacks 0-99.\n"
+                        "     Layers float over everything; use them for things that should\n"
+                        "     sit beside the conversation rather than inside it.\n"
                         "Blocks carry a stable id you choose, so you can update the same "
                         "block later instead of adding another one."
                     ),
                     "items": {"type": "object"},
                 },
             },
-            "required": ["motive", "why", "ops"],
+            "required": ["motive", "rationale", "ops"],
         }
 
     def _binding_key(self) -> str:
@@ -156,11 +243,66 @@ class UiEmitTool(BaseTool):
                 if not block.get("id"):
                     problems.append(
                         f"op {i} block has no id — it can never be updated, only added to")
-            if name in ("upsert_block", "clear"):
+                if block.get("type") in ("image", "video"):
+                    problems.extend(self._media_problems(i, block))
+            if name == "upsert_block":
+                block = op.get("block") or {}
+                place = block.get("place")
+                if place is not None:
+                    if not isinstance(place, dict):
+                        problems.append(f"op {i} place must be an object")
+                    else:
+                        a = place.get("anchor")
+                        if a is not None and a not in ANCHORS:
+                            problems.append(
+                                f"op {i} anchor {a!r} is not one of {sorted(ANCHORS)}")
+                        if op.get("region") != "layer":
+                            problems.append(
+                                f"op {i} has a place but region is "
+                                f"{op.get('region','stream')!r} — placement only applies "
+                                f"in region 'layer'")
+            if name in ("upsert_block", "clear", "move_block"):
                 region = op.get("region", "stream")
                 if region not in REGIONS:
                     problems.append(f"op {i} region {region!r} is not one of {sorted(REGIONS)} — dropped")
                     continue
+            if name in ("style", "animate", "move_block"):
+                if not op.get("target"):
+                    problems.append(f"op {i} {name} needs a target block id — dropped")
+                    continue
+            if name == "style":
+                bad = self._bad_style(op.get("style"))
+                if bad:
+                    problems.append(f"op {i} style: {bad}")
+            if name == "animate":
+                eff = op.get("effect")
+                kf = op.get("keyframes")
+                if eff is not None and eff not in EFFECTS:
+                    problems.append(
+                        f"op {i} effect {eff!r} is not one of {EFFECTS} — the page will "
+                        f"ignore it")
+                if eff in EFFECTS and not isinstance(kf, list):
+                    clean.append(op)
+                    continue
+                if not isinstance(kf, list) or not kf:
+                    problems.append(
+                        f"op {i} animate needs either effect:'<name>' or a keyframes "
+                        f"array — dropped")
+                    continue
+                heavy = set()
+                for frame in kf:
+                    if isinstance(frame, dict):
+                        bad = self._bad_style({k: v for k, v in frame.items()
+                                               if k not in ("offset", "easing")})
+                        if bad:
+                            problems.append(f"op {i} keyframe: {bad}")
+                        heavy |= {k for k in frame
+                                  if k in STYLE_PROPS and k not in CHEAP_ANIM}
+                if heavy:
+                    problems.append(
+                        f"op {i} animates {sorted(heavy)}, which forces layout on every "
+                        f"frame and will stutter the text and audio. Prefer transform "
+                        f"and opacity.")
             if name == "set_theme":
                 colors = (op.get("tokens") or {}).get("color") or {}
                 unknown = [k for k in colors if k not in COLOR_TOKENS]
@@ -173,6 +315,74 @@ class UiEmitTool(BaseTool):
                     problems.append(f"op {i} font {font!r} is not one of {sorted(FONTS)}")
             clean.append(op)
         return clean, problems
+
+    def _media_problems(self, i: int, block: dict) -> list[str]:
+        """Explain anything the page will refuse or quietly change about a media block.
+
+        The browser enforces all of this independently; these messages exist so the bot
+        learns WHY nothing appeared, instead of emitting the same rejected URL forever.
+        """
+        out: list[str] = []
+        kind = block.get("type")
+        asset, src = block.get("asset"), block.get("src")
+
+        if asset is not None:
+            if not isinstance(asset, str) or not ASSET_OK.match(asset) or ".." in asset:
+                out.append(
+                    f"op {i} asset {asset!r} is not a plain published asset name — refused")
+        elif isinstance(src, str) and src:
+            low = src.lower()
+            if src.startswith("//"):
+                out.append(
+                    f"op {i} src {src[:40]!r} is protocol-relative, which resolves to a "
+                    f"foreign host — refused. Use a path starting with a single '/'.")
+            elif src.startswith("/"):
+                pass                                     # same-origin, fine
+            elif low.startswith("https://"):
+                host = src[8:].split("/", 1)[0].lower()
+                if host not in MEDIA_ORIGINS:
+                    out.append(
+                        f"op {i} src host {host!r} is not in the media allowlist — refused "
+                        f"by the browser. Publish it as an asset, or serve it from this "
+                        f"origin, rather than hotlinking it.")
+            else:
+                out.append(
+                    f"op {i} src {src[:40]!r} is refused — only a same-origin path or an "
+                    f"allowlisted https host. data:, blob: and http: are all rejected.")
+        else:
+            out.append(f"op {i} {kind} block has neither 'asset' nor 'src' — nothing to show")
+
+        if kind == "image" and not str(block.get("alt") or "").strip():
+            out.append(
+                f"op {i} image has no alt text. This page is voice-first; a visitor who "
+                f"cannot see it is the one most likely to be here. It still renders.")
+        if kind == "video":
+            if block.get("autoplay") and not block.get("muted"):
+                out.append(
+                    f"op {i} video sets autoplay without muted. Every browser refuses "
+                    f"autoplay with sound, so the page mutes it to make it play at all. "
+                    f"If the sound matters, drop autoplay and let them press play.")
+            if block.get("controls") is False:
+                out.append(
+                    f"op {i} video sets controls:false, so it cannot be paused. Fine for "
+                    f"an ambient loop; hostile for anything a visitor is meant to watch.")
+        return out
+
+    def _bad_style(self, style: Any) -> Optional[str]:
+        """Explain why a style object would be rejected, or None if it is fine."""
+        if style is None:
+            return "no style object"
+        if not isinstance(style, dict):
+            return "style must be an object"
+        unknown = [k for k in style if k not in STYLE_PROPS]
+        for k, v in style.items():
+            if isinstance(v, str) and BAD_VALUE.search(v):
+                return f"value for {k} contains something the page refuses (url/expression/injection)"
+            if isinstance(v, str) and len(v) > 200:
+                return f"value for {k} is too long"
+        if unknown:
+            return f"unknown properties {sorted(unknown)} — dropped by the page"
+        return None
 
     async def _relay_session_id(self) -> Optional[str]:
         """The visitor's relay session.
@@ -197,15 +407,15 @@ class UiEmitTool(BaseTool):
         prefix = "registerabot:"
         return conv[len(prefix):] if conv.startswith(prefix) else None
 
-    async def execute(self, motive: str, why: str, ops: Any, **kwargs) -> ToolResult:
+    async def execute(self, motive: str, rationale: str, ops: Any, **kwargs) -> ToolResult:
         slug = self._profile_slug
         if not slug:
             return ToolResult.fail("No profile slug on this session.")
         if motive not in MOTIVES:
             return ToolResult.fail(f"motive must be one of {MOTIVES}")
-        if not isinstance(why, str) or len(why.strip()) < 8:
+        if not isinstance(rationale, str) or len(rationale.strip()) < 8:
             return ToolResult.fail(
-                "why must be a sentence explaining why this shape beats saying it.")
+                "rationale must be a sentence explaining why this shape beats saying it.")
 
         clean, problems = self._check_ops(ops)
         if not clean:
@@ -228,7 +438,7 @@ class UiEmitTool(BaseTool):
         # for the presentation layer: what the bot chose, and why it thought so. The
         # executor already persists tool-call arguments, so every call is a labelled
         # example without a second store — this log line just makes it greppable live.
-        log.info("ui_emit", slug=slug, motive=motive, why=why.strip(),
+        log.info("ui_emit", slug=slug, motive=motive, rationale=rationale.strip(),
                  ops=len(clean), shapes=[o.get("op") for o in clean],
                  blocks=[(o.get("block") or {}).get("type") for o in clean
                          if o.get("op") == "upsert_block"],
