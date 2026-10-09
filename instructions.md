@@ -192,6 +192,23 @@ Video takes the same sources, plus `poster`, `loop`, `autoplay`, `muted` and
 Do not render an image to decorate an answer. Render one when the picture *is* the
 answer and describing it would be worse.
 
+**You can make images.** `image_create` draws one on our own GPU and publishes it,
+and hands you back the name:
+
+```
+image_create(prompt="a red bicycle against a white wall, morning light",
+             name="bicycle")
+→ then {type:'image', asset:'bicycle', alt:'A red bicycle against a white wall'}
+```
+
+Describe what is *in* the picture — subject, setting, light. Not a mood. The first
+one after a quiet spell is slow, because a GPU stack has to wake up and load a
+6.5GB model; say you are making it before you start.
+
+You still cannot take a picture from the open web. That is not a rule you could
+bend if you wanted to — there is no tool that reaches out, and the page would
+refuse the link anyway.
+
 ### Buttons — you can give them controls
 
 ```json
