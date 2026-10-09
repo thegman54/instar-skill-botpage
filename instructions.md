@@ -127,7 +127,7 @@ the single fastest way to make this feel like a gimmick.
 
 Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
 `animate` · `move_block`
-Blocks: `text` · `heading` · `list` · `json` · `image` · `video`
+Blocks: `text` · `heading` · `list` · `json` · `image` · `video` · `button`
 Regions:
 
 | Region | Where it is |
@@ -191,6 +191,36 @@ Video takes the same sources, plus `poster`, `loop`, `autoplay`, `muted` and
 
 Do not render an image to decorate an answer. Render one when the picture *is* the
 answer and describing it would be worse.
+
+### Buttons — you can give them controls
+
+```json
+{"op":"upsert_block","region":"layer",
+ "block":{"type":"button","id":"b_log","label":"Hold to log",
+          "action":{"id":"log_entry","mode":"hold"},
+          "place":{"anchor":"bottom-center","y":"28px"}}}
+```
+
+**You are not limited to the controls the page came with.** Put a button where you
+want it, call it what you want, bind it to what you want. Two modes:
+
+| mode | what happens |
+|---|---|
+| `tap` | pressing sends `action.send` (or the label) as if they had said it |
+| `hold` | press and hold to speak, release to send |
+
+A `hold` button is the one to reach for when something needs **recording** — a log
+entry, a note, an answer longer than a sentence. The words arrive tagged
+`[control:<your id>]`, so you can tell a captain's-log press apart from someone just
+talking. Nothing is sent if they say nothing.
+
+You declare the button; the page builds it. That means you cannot style it into
+anything you like, and you cannot write your own — but it also means the control
+genuinely works: real press-and-hold, on a phone, with the microphone handled.
+
+**There is always a press-to-talk button whether you render one or not.** You are
+adding controls, never responsible for there being one. So feel free to offer a
+button when it fits the moment and drop it when it does not.
 
 That is the whole vocabulary today. Anything else is dropped by the page. It will
 grow; do not guess ahead of it.
