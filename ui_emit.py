@@ -32,7 +32,13 @@ log = structlog.get_logger()
 # Mirrors the applyOps whitelist in relay/src/chat-surface.ts. The browser is
 # authoritative; these exist so a bad op fails here with an explanation.
 OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
-       "style", "animate", "move_block"}
+       "style", "animate", "move_block", "stage", "camera"}
+
+# stage/camera drive the avatar. They were missing from this set while the page had
+# supported them all along, so every attempt to move her was dropped here and the bot
+# concluded, reasonably, that it had no such capability.
+STAGE_ACTIONS = {"show", "hide", "place", "gesture", "emote"}
+CAMERA_FRAMES = {"face", "bust", "full", "wide"}
 
 # Mirrors STYLE_OK in relay/src/chat-surface.ts. The security boundary in CSS is values
 # and selectors, not properties — a block only ever sets its own inline style, so no
@@ -90,6 +96,8 @@ REGIONS = {"stream", "rail", "hero", "footer", "layer"}
 ANCHORS = {"top-left", "top-center", "top-right",
            "center-left", "center", "center-right",
            "bottom-left", "bottom-center", "bottom-right"}
+# Where the avatar may park. 'full' is full-bleed, the default she starts in.
+STAGE_ANCHORS = ANCHORS | {"full"}
 COLOR_TOKENS = {"bg", "ink", "soft", "accent", "surface"}
 FONTS = {"sans", "serif", "mono"}
 
@@ -197,6 +205,10 @@ class UiEmitTool(BaseTool):
                         "       Re-sending the same video id with the same source keeps\n"
                         "       playing; it does not restart. Change the source to reset.\n"
                         "     any block may carry style:{...} — see below\n"
+                        "     EVERY block animates in and out whether you ask or not.\n"
+                        "     You choose the CHARACTER, never whether: enter:'<effect>'\n"
+                        "     and exit:'<effect>' on the block. Nothing on this page is\n"
+                        "     allowed to simply appear or simply vanish.\n"
                         "  {op:'style', target:'<block id>', style:{...}}\n"
                         "     colour, spacing, radius, shadow, filter, type, layout.\n"
                         "  {op:'animate', target:'<block id>', effect:'<name>',\n"
@@ -208,6 +220,15 @@ class UiEmitTool(BaseTool):
                         "     keyframes are plain objects. Animate transform and opacity:\n"
                         "     they run off the main thread. Animating width/top/height\n"
                         "     forces layout every frame and stutters your own speech.\n"
+                        "  {op:'stage', action:'show'|'hide'|'place'|'gesture'|'emote',\n"
+                        "            place?:{anchor, size:'200px', margin:'24px',\n"
+                        "                    shape:'circle'|'square'}, name?:'<gesture>'}\n"
+                        "     SHE IS A MOVABLE WINDOW. 'place' parks her as a circle in a\n"
+                        "     corner so she is out of the way of what she is showing you;\n"
+                        "     anchor 'full' puts her back to full screen. The move morphs.\n"
+                        "     Park her once you start showing things. Talking head centre\n"
+                        "     stage while the answer is somewhere else is the wrong shape.\n"
+                        "  {op:'camera', frame:'face'|'bust'|'full'|'wide'}\n"
                         "  {op:'move_block', target:'<block id>', region:<region>, place?:{...}}\n"
                         "     the browser morphs it from the old position to the new one.\n"
                         "  Free placement (region 'layer'): give the block a place object —\n"
@@ -325,6 +346,22 @@ class UiEmitTool(BaseTool):
                         f"op {i} animates {sorted(heavy)}, which forces layout on every "
                         f"frame and will stutter the text and audio. Prefer transform "
                         f"and opacity.")
+            if name == "stage":
+                act = op.get("action")
+                if act not in STAGE_ACTIONS:
+                    problems.append(
+                        f"op {i} stage action {act!r} is not one of {sorted(STAGE_ACTIONS)}")
+                if act == "place":
+                    anchor = (op.get("place") or {}).get("anchor", "bottom-right")
+                    if anchor not in STAGE_ANCHORS:
+                        problems.append(
+                            f"op {i} stage anchor {anchor!r} is not one of "
+                            f"{sorted(STAGE_ANCHORS)}")
+            if name == "camera":
+                fr = op.get("frame", "bust")
+                if fr not in CAMERA_FRAMES:
+                    problems.append(
+                        f"op {i} camera frame {fr!r} is not one of {sorted(CAMERA_FRAMES)}")
             if name == "set_theme":
                 colors = (op.get("tokens") or {}).get("color") or {}
                 unknown = [k for k in colors if k not in COLOR_TOKENS]

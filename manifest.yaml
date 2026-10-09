@@ -4,7 +4,7 @@ description: The bot publishes its own public page on the relay — theme, layou
 category: Interface
 icon: layout
 color: violet
-version: 1.3.1
+version: 1.4.0
 
 # Per-bot key, scoped by the relay to this bot's own slug: a key can only ever
 # write its own profile (relay/src/index.ts, PUT /bots/:slug/profile).
