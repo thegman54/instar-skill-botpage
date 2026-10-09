@@ -63,7 +63,14 @@ EFFECTS = [
     "slide_up", "slide_down", "slide_left", "slide_right",
     "zoom_in", "zoom_out", "pop", "bounce", "shake", "pulse", "flip", "drift_in",
 ]
-BLOCKS = {"text", "heading", "list", "json", "image", "video"}
+BLOCKS = {"text", "heading", "list", "json", "image", "video", "button"}
+
+# A button is DECLARED, never drawn. The bot says one should exist, what it says, where
+# it sits and what pressing it means; the page builds the element. That line is the
+# security model for bot-driven controls — an element authored by a model must never be
+# the thing holding a pointer, a keystroke or a microphone, because then steering the
+# model is the same as owning the input.
+BUTTON_MODES = {"tap", "hold"}
 
 # Mirrors mediaSrc() in relay/src/chat-surface.ts. Media is the one block family that
 # makes the page fetch something, and a fetch is a disclosure: whatever host serves the
@@ -164,6 +171,19 @@ class UiEmitTool(BaseTool):
                         "                  {type:'image',id,asset|src,alt,caption?,fit?}\n"
                         "                  {type:'video',id,asset|src,poster?,caption?,\n"
                         "                                controls?,autoplay?,muted?,loop?}\n"
+                        "                  {type:'button',id,label,\n"
+                        "                     action:{id, mode:'tap'|'hold', send?}}\n"
+                        "     BUTTONS are yours to place, name and bind — put one where\n"
+                        "     you want it, including region 'layer'. You declare it; the\n"
+                        "     page builds it.\n"
+                        "       mode 'tap'  — pressing sends action.send (or the label)\n"
+                        "                     as if the visitor had said it.\n"
+                        "       mode 'hold' — press and hold to speak, release to send.\n"
+                        "                     The words arrive tagged [control:<id>] so\n"
+                        "                     you know which control produced them. Use\n"
+                        "                     this for anything that records.\n"
+                        "     A default press-to-talk always exists, so you are adding\n"
+                        "     controls, never responsible for there being one.\n"
                         "     MEDIA SOURCES are not free-form URLs. Either:\n"
                         "       asset:'hero'      — an asset you published for this bot\n"
                         "       src:'/path'       — a same-origin path this relay serves\n"
@@ -245,6 +265,8 @@ class UiEmitTool(BaseTool):
                         f"op {i} block has no id — it can never be updated, only added to")
                 if block.get("type") in ("image", "video"):
                     problems.extend(self._media_problems(i, block))
+                if block.get("type") == "button":
+                    problems.extend(self._button_problems(i, block))
             if name == "upsert_block":
                 block = op.get("block") or {}
                 place = block.get("place")
@@ -315,6 +337,36 @@ class UiEmitTool(BaseTool):
                     problems.append(f"op {i} font {font!r} is not one of {sorted(FONTS)}")
             clean.append(op)
         return clean, problems
+
+    def _button_problems(self, i: int, block: dict) -> list[str]:
+        """Explain anything the page will refuse or change about a declared control."""
+        out: list[str] = []
+        label = str(block.get("label") or "").strip()
+        action = block.get("action")
+        if not label:
+            out.append(f"op {i} button has no label — it renders as 'Press'")
+        if len(label) > 40:
+            out.append(f"op {i} button label is {len(label)} characters; it will not fit")
+        if not isinstance(action, dict):
+            out.append(
+                f"op {i} button has no action object, so pressing it does nothing. "
+                f"Give it {{id, mode:'tap'|'hold'}}.")
+            return out
+        mode = action.get("mode", "tap")
+        if mode not in BUTTON_MODES:
+            out.append(f"op {i} button mode {mode!r} is not 'tap' or 'hold' — treated as tap")
+        if not action.get("id"):
+            out.append(
+                f"op {i} button action has no id. Without one you cannot tell its "
+                f"press apart from anything else the visitor says.")
+        if mode == "tap" and not str(action.get("send") or label).strip():
+            out.append(f"op {i} tap button has nothing to send — give action.send or a label")
+        if mode == "hold":
+            out.append(
+                f"op {i} hold button: the visitor presses and speaks, and the words "
+                f"arrive tagged [control:{action.get('id')}] when they let go. Nothing "
+                f"is sent if they say nothing.")
+        return out
 
     def _media_problems(self, i: int, block: dict) -> list[str]:
         """Explain anything the page will refuse or quietly change about a media block.
