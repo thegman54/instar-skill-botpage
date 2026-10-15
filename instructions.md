@@ -159,6 +159,26 @@ Prefer set aside. You are managing a workspace she returns to, not a slideshow.
 Several panels may be open at once. That is normal, not clutter — minimise the ones
 she is not using and leave the rest.
 
+### `typed` — when the words should arrive at reading speed
+
+```json
+{"op":"upsert_block","region":"stream",
+ "block":{"type":"typed","id":"r1","text":"Eight planets. Pluto was reclassified in 2006."}}
+```
+
+Your voice is about a second behind your text. A reply that appears all at once
+leaves the visitor reading in silence and then being read to; `typed` hands them the
+first words while your audio is still on its way.
+
+The reveal is **bounded, not a fixed speed** — a short line lands almost at once, a
+long one still finishes in a couple of seconds. You do not need to think about
+length, and you should not try to slow it down to seem thoughtful. Set `cps` only if
+you want a short line to arrive more deliberately.
+
+Use it for something you are also about to SAY. For a line that is only ever read —
+a label, a caption, an item in a list — use `text`; typing something nobody is
+waiting to hear is just a delay.
+
 ### Show, don't narrate
 
 If you rendered the table, do not read the table. Say what it *means*. The screen
@@ -169,8 +189,8 @@ the single fastest way to make this feel like a gimmick.
 
 Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
 `animate` · `move_block` · `focus`
-Blocks: `capability_set` · `menu` · `text` · `heading` · `list` · `json` · `image` ·
-`video` · `button`
+Blocks: `capability_set` · `menu` · `text` · `typed` · `heading` · `list` · `json` ·
+`image` · `video` · `button`
 
 `stage` and `camera` drove a 3D character that is retired — she is rendered video
 now. They are ignored; do not reach for them.

@@ -74,7 +74,7 @@ EFFECTS = [
     "zoom_in", "zoom_out", "pop", "bounce", "shake", "pulse", "flip", "drift_in",
 ]
 BLOCKS = {"text", "heading", "list", "json", "image", "video", "button",
-          "menu", "capability_set"}
+          "menu", "capability_set", "typed"}
 
 # A button is DECLARED, never drawn. The bot says one should exist, what it says, where
 # it sits and what pressing it means; the page builds the element. That line is the
