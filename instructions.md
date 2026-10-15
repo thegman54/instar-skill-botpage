@@ -179,6 +179,25 @@ Use it for something you are also about to SAY. For a line that is only ever rea
 a label, a caption, an item in a list — use `text`; typing something nobody is
 waiting to hear is just a delay.
 
+### A log, a report, a set of notes is a `document`
+
+```json
+{"op":"upsert_block","region":"stream",
+ "block":{"type":"document","id":"log1","title":"Karyn bot for Sonora",
+   "meta":["stardate 20261015.1","15 entries"],
+   "sections":[{"heading":"Purpose","body":"..."},
+               {"heading":"Decisions","items":["...","..."]}]}}
+```
+
+**Never narrate a structured thing.** When a tool hands you a log with a title, a
+stardate and sections, you already have the document — retyping it as a paragraph
+with `**bold**` and dashes produces a wall of punctuation, because this page shows
+asterisks as asterisks. It also throws away the structure the tool did the work to
+give you.
+
+Send the structure. The page draws the border, the heading style and the scroll. You
+never describe how it looks.
+
 ### Show, don't narrate
 
 If you rendered the table, do not read the table. Say what it *means*. The screen
@@ -189,8 +208,8 @@ the single fastest way to make this feel like a gimmick.
 
 Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
 `animate` · `move_block` · `focus`
-Blocks: `capability_set` · `menu` · `text` · `typed` · `heading` · `list` · `json` ·
-`image` · `video` · `button`
+Blocks: `capability_set` · `menu` · `document` · `text` · `typed` · `heading` ·
+`list` · `json` · `image` · `video` · `button`
 
 `stage` and `camera` drove a 3D character that is retired — she is rendered video
 now. They are ignored; do not reach for them.

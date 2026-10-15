@@ -74,7 +74,7 @@ EFFECTS = [
     "zoom_in", "zoom_out", "pop", "bounce", "shake", "pulse", "flip", "drift_in",
 ]
 BLOCKS = {"text", "heading", "list", "json", "image", "video", "button",
-          "menu", "capability_set", "typed"}
+          "menu", "capability_set", "typed", "document"}
 
 # A button is DECLARED, never drawn. The bot says one should exist, what it says, where
 # it sits and what pressing it means; the page builds the element. That line is the
@@ -191,6 +191,12 @@ class UiEmitTool(BaseTool):
                         "     regions: stream (centre), rail (right panel), hero (top),\n"
                         "              footer (bottom), layer (free placement, stacked)\n"
                         "     block types: {type:'text',id,text} {type:'heading',id,text}\n"
+                        "                  {type:'document',id,title,meta:[..],\n"
+                        "                     sections:[{heading,body}|{heading,items:[..]}]}\n"
+                        "                     A structured thing that is NOT a sentence:\n"
+                        "                     a log, a report, a set of notes. It scrolls\n"
+                        "                     itself. Send the STRUCTURE, never formatting\n"
+                        "                     — this page shows asterisks as asterisks.\n"
                         "                  {type:'typed',id,text,cps?} — arrives at\n"
                         "                     reading speed, for a line you are also\n"
                         "                     about to SAY. Your voice is ~1s behind\n"
