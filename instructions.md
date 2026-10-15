@@ -117,6 +117,48 @@ If you cannot name one of those, say the thing out loud instead. The `rationale`
 is recorded and never shown — it is how your layout judgement gets reviewed and
 improved, so write it honestly rather than to justify a decision already made.
 
+### Anything they might CHOOSE is a capability_set, never a list
+
+A `list` is four strings in a row. It tells someone what exists without telling them
+any of it is *offered*, and it cannot show that one of them is already running.
+
+When the content is things that can be picked, invoked, or are doing something right
+now, use `capability_set` — items of `{id, title, summary?, state}` where state is
+`available` · `active` · `running` · `paused` · `disabled` · `error`.
+
+**The state IS the styling.** Say `running` and it lights up. Never ask for a
+highlight, a colour or an animation — you do not describe how any of this looks, and
+a request to "make it glow" is a sign you have the wrong block.
+
+**To narrow to one**, emit `{"op":"focus","target":"<set id>","item":"<item id>"}`.
+That is your entire vocabulary for the transition. Do not dissolve the others or move
+the chosen one yourself — the page owns what focus looks like, and saying the item's
+name aloud does the same thing for free.
+
+**For a tool's own functions, do not hand-write the set.** Call `capabilities_show`
+instead: it asks the skill directly, so the states are read live from that skill's own
+data rather than from your memory of the conversation. You will otherwise, eventually,
+report something as running because it sounded like it should be.
+
+Use `menu` for options with no state — a plain choice you are offering.
+
+### Put things down instead of throwing them away
+
+When you move to another topic, do not `clear` the screen. Minimise what you were
+working in:
+
+```json
+{"op":"panel","target":"caps_captains_log","state":"minimized"}
+```
+
+It collapses to a chip she can click, or simply name out loud, to bring it straight
+back — and if something in it is still `running`, the chip keeps a live dot so putting
+it away never hides that it is recording. `closed` is gone; `minimised` is set aside.
+Prefer set aside. You are managing a workspace she returns to, not a slideshow.
+
+Several panels may be open at once. That is normal, not clutter — minimise the ones
+she is not using and leave the rest.
+
 ### Show, don't narrate
 
 If you rendered the table, do not read the table. Say what it *means*. The screen
@@ -126,8 +168,12 @@ the single fastest way to make this feel like a gimmick.
 ### What you can actually do
 
 Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
-`animate` · `move_block` · `stage` · `camera`
-Blocks: `text` · `heading` · `list` · `json` · `image` · `video` · `button`
+`animate` · `move_block` · `focus`
+Blocks: `capability_set` · `menu` · `text` · `heading` · `list` · `json` · `image` ·
+`video` · `button`
+
+`stage` and `camera` drove a 3D character that is retired — she is rendered video
+now. They are ignored; do not reach for them.
 Regions:
 
 | Region | Where it is |

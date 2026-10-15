@@ -31,8 +31,12 @@ log = structlog.get_logger()
 
 # Mirrors the applyOps whitelist in relay/src/chat-surface.ts. The browser is
 # authoritative; these exist so a bad op fails here with an explanation.
+# stage/camera drove a 3D character that is RETIRED — the avatar is rendered video
+# now. They are refused here rather than left in: the page's only remaining path to
+# three.js runs through them, and an 11MB download the bot asked for by accident is
+# exactly how this surfaced.
 OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
-       "style", "animate", "move_block", "stage", "camera", "focus"}
+       "style", "animate", "move_block", "focus", "panel"}
 
 # stage/camera drive the avatar. They were missing from this set while the page had
 # supported them all along, so every attempt to move her was dropped here and the bot
@@ -173,6 +177,13 @@ class UiEmitTool(BaseTool):
                         "  {op:'say', text:'...'} — a line in the main area\n"
                         "  {op:'clear', region:<region>}\n"
                         "  {op:'upsert_block', region:<region>, block:{...}}\n"
+                        "  {op:'panel', target:<block id>,\n"
+                        "     state:'open'|'minimized'|'closed'} — put a surface down\n"
+                        "     without destroying it. Minimised leaves a chip she can\n"
+                        "     click or NAME to bring it back, and anything running\n"
+                        "     keeps a live dot on that chip. Use it to clear the screen\n"
+                        "     between topics instead of clearing the region: closed is\n"
+                        "     gone, minimised is set aside.\n"
                         "  {op:'focus', target:<set id>, item:<item id>} — narrow a\n"
                         "     capability_set to one. You say WHICH; the page decides\n"
                         "     what focus looks like (the others leave, that one rises).\n"
