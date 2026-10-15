@@ -32,7 +32,7 @@ log = structlog.get_logger()
 # Mirrors the applyOps whitelist in relay/src/chat-surface.ts. The browser is
 # authoritative; these exist so a bad op fails here with an explanation.
 OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
-       "style", "animate", "move_block", "stage", "camera"}
+       "style", "animate", "move_block", "stage", "camera", "focus"}
 
 # stage/camera drive the avatar. They were missing from this set while the page had
 # supported them all along, so every attempt to move her was dropped here and the bot
@@ -69,7 +69,8 @@ EFFECTS = [
     "slide_up", "slide_down", "slide_left", "slide_right",
     "zoom_in", "zoom_out", "pop", "bounce", "shake", "pulse", "flip", "drift_in",
 ]
-BLOCKS = {"text", "heading", "list", "json", "image", "video", "button"}
+BLOCKS = {"text", "heading", "list", "json", "image", "video", "button",
+          "menu", "capability_set"}
 
 # A button is DECLARED, never drawn. The bot says one should exist, what it says, where
 # it sits and what pressing it means; the page builds the element. That line is the
@@ -172,10 +173,29 @@ class UiEmitTool(BaseTool):
                         "  {op:'say', text:'...'} — a line in the main area\n"
                         "  {op:'clear', region:<region>}\n"
                         "  {op:'upsert_block', region:<region>, block:{...}}\n"
+                        "  {op:'focus', target:<set id>, item:<item id>} — narrow a\n"
+                        "     capability_set to one. You say WHICH; the page decides\n"
+                        "     what focus looks like (the others leave, that one rises).\n"
+                        "     Never describe the transition yourself.\n"
                         "     regions: stream (centre), rail (right panel), hero (top),\n"
                         "              footer (bottom), layer (free placement, stacked)\n"
                         "     block types: {type:'text',id,text} {type:'heading',id,text}\n"
                         "                  {type:'list',id,items:[...],ordered?} {type:'json',id,value}\n"
+                        "                  {type:'capability_set',id,title?,items:[\n"
+                        "                      {id,title,summary?,state}]}\n"
+                        "                     WHAT YOU CAN DO, and what each part is\n"
+                        "                     DOING. state is one of: available active\n"
+                        "                     running paused disabled error — and the\n"
+                        "                     state IS the styling, so never ask for a\n"
+                        "                     highlight. Say running and it lights up.\n"
+                        "                     Prefer this over a list for anything the\n"
+                        "                     visitor might choose or you might invoke.\n"
+                        "                     Saying an item's name focuses it, free.\n"
+                        "                  {type:'menu',id,title?,items:[\n"
+                        "                      {label,hint?,key?}]}\n"
+                        "                     Options you are offering. Speaking one\n"
+                        "                     highlights it. Use when the choice is not\n"
+                        "                     a capability with a state.\n"
                         "                  {type:'image',id,asset|src,alt,caption?,fit?}\n"
                         "                  {type:'video',id,asset|src,poster?,caption?,\n"
                         "                                controls?,autoplay?,muted?,loop?}\n"

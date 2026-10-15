@@ -5,3 +5,4 @@ from .botpage_publish import BotPagePublishTool
 from .botpage_status import BotPageStatusTool
 from .chat_link_create import ChatLinkCreateTool
 from .ui_emit import UiEmitTool
+from .capabilities_show import CapabilitiesShowTool
