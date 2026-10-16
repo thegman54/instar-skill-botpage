@@ -42,6 +42,9 @@ OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
 # supported them all along, so every attempt to move her was dropped here and the bot
 # concluded, reasonably, that it had no such capability.
 STAGE_ACTIONS = {"show", "hide", "place", "gesture", "emote"}
+# How much of the screen a surface gets. 'full' is a workspace — most of the screen,
+# fixed, the conversation behind it — for something being worked IN rather than shown.
+PANEL_STATES = {"full", "open", "minimized", "minimised", "closed"}
 CAMERA_FRAMES = {"face", "bust", "full", "wide"}
 
 # Mirrors STYLE_OK in relay/src/chat-surface.ts. The security boundary in CSS is values
@@ -178,12 +181,20 @@ class UiEmitTool(BaseTool):
                         "  {op:'clear', region:<region>}\n"
                         "  {op:'upsert_block', region:<region>, block:{...}}\n"
                         "  {op:'panel', target:<block id>,\n"
-                        "     state:'open'|'minimized'|'closed'} — put a surface down\n"
-                        "     without destroying it. Minimised leaves a chip she can\n"
-                        "     click or NAME to bring it back, and anything running\n"
-                        "     keeps a live dot on that chip. Use it to clear the screen\n"
-                        "     between topics instead of clearing the region: closed is\n"
-                        "     gone, minimised is set aside.\n"
+                        "     state:'full'|'open'|'minimized'|'closed'} — how much of\n"
+                        "     the screen a surface gets, and whether it is put away.\n"
+                        "     FULL makes it a workspace: most of the screen, fixed, the\n"
+                        "     conversation carrying on behind it. Use it when someone is\n"
+                        "     WORKING IN a thing rather than being shown it — a log they\n"
+                        "     are dictating, a document being gone through. In the stream\n"
+                        "     a document is a message: it scrolls and the next turn pushes\n"
+                        "     it off, which is right for an answer and wrong for a surface\n"
+                        "     they are inside of.\n"
+                        "     Minimised leaves a chip they can click or NAME to bring it\n"
+                        "     back, newest first, and anything running keeps a live dot —\n"
+                        "     so putting a recording log away never hides that it is\n"
+                        "     recording. Closed is gone; minimised is set aside. They can\n"
+                        "     also drag a full panel down to put it away themselves.\n"
                         "  {op:'focus', target:<set id>, item:<item id>} — narrow a\n"
                         "     capability_set to one. You say WHICH; the page decides\n"
                         "     what focus looks like (the others leave, that one rises).\n"
@@ -390,6 +401,15 @@ class UiEmitTool(BaseTool):
                         f"op {i} animates {sorted(heavy)}, which forces layout on every "
                         f"frame and will stutter the text and audio. Prefer transform "
                         f"and opacity.")
+            if name == "panel":
+                if not op.get("target"):
+                    problems.append(f"op {i} panel needs a target block id — dropped")
+                    continue
+                st = op.get("state", "open")
+                if st not in PANEL_STATES:
+                    problems.append(
+                        f"op {i} panel state {st!r} is not one of {sorted(PANEL_STATES)} "
+                        f"— the page ignores it, so nothing moves")
             if name == "stage":
                 act = op.get("action")
                 if act not in STAGE_ACTIONS:
