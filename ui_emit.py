@@ -36,7 +36,7 @@ log = structlog.get_logger()
 # three.js runs through them, and an 11MB download the bot asked for by accident is
 # exactly how this surfaced.
 OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
-       "style", "animate", "move_block", "focus", "panel"}
+       "style", "animate", "move_block", "focus", "panel", "workspace"}
 
 # stage/camera drive the avatar. They were missing from this set while the page had
 # supported them all along, so every attempt to move her was dropped here and the bot
@@ -100,7 +100,7 @@ BUTTON_MODES = {"tap", "hold"}
 # me anything off the internet" a deliberate act rather than a default.
 MEDIA_ORIGINS: set[str] = set()
 ASSET_OK = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
-REGIONS = {"stream", "rail", "hero", "footer", "layer", "actions"}
+REGIONS = {"stream", "rail", "hero", "footer", "layer", "actions", "workspace"}
 ANCHORS = {"top-left", "top-center", "top-right",
            "center-left", "center", "center-right",
            "bottom-left", "bottom-center", "bottom-right"}
@@ -180,6 +180,16 @@ class UiEmitTool(BaseTool):
                         "  {op:'say', text:'...'} — a line in the main area\n"
                         "  {op:'clear', region:<region>}\n"
                         "  {op:'upsert_block', region:<region>, block:{...}}\n"
+                        "  {op:'workspace', id:'<tool>', title:'<name>',\n"
+                        "     state:'open'|'minimized'|'closed'} — OPEN A TOOL.\n"
+                        "     The conversation moves aside and the tool takes the\n"
+                        "     screen. Put blocks in it with region:'workspace'.\n"
+                        "     Use this when someone is working IN something — a log\n"
+                        "     they are dictating, a library they are going through —\n"
+                        "     rather than being shown a result. Minimising puts away\n"
+                        "     the WHOLE tool, not one block of it, and it comes back\n"
+                        "     from its chip exactly as they left it.\n"
+                        "     One tool at a time: opening another clears the surface.\n"
                         "  {op:'panel', target:<block id>,\n"
                         "     state:'full'|'open'|'minimized'|'closed'} — how much of\n"
                         "     the screen a surface gets, and whether it is put away.\n"
