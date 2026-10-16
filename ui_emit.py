@@ -100,7 +100,7 @@ BUTTON_MODES = {"tap", "hold"}
 # me anything off the internet" a deliberate act rather than a default.
 MEDIA_ORIGINS: set[str] = set()
 ASSET_OK = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
-REGIONS = {"stream", "rail", "hero", "footer", "layer"}
+REGIONS = {"stream", "rail", "hero", "footer", "layer", "actions"}
 ANCHORS = {"top-left", "top-center", "top-right",
            "center-left", "center", "center-right",
            "bottom-left", "bottom-center", "bottom-right"}
@@ -200,6 +200,12 @@ class UiEmitTool(BaseTool):
                         "     what focus looks like (the others leave, that one rises).\n"
                         "     Never describe the transition yourself.\n"
                         "     regions: stream (centre), rail (right panel), hero (top),\n"
+                        "              actions (a strip just above the Talk button —\n"
+                        "                put QUICK ACTIONS there, never in the stream.\n"
+                        "                A button in the conversation scrolls away and\n"
+                        "                can land on the chrome; here it is always in\n"
+                        "                the same place. Offer only what applies now,\n"
+                        "                and clear the region when it stops applying),\n"
                         "              footer (bottom), layer (free placement, stacked)\n"
                         "     block types: {type:'text',id,text} {type:'heading',id,text}\n"
                         "                  {type:'document',id,title,meta:[..],\n"
