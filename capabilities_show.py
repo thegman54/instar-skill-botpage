@@ -31,6 +31,10 @@ import structlog
 from ..base import BaseTool, ToolResult
 from ..registry import register_tool
 from .botpage_publish import relay_origin
+# ONE list of regions, imported rather than restated. This file kept its own
+# copy, which stayed at four entries while the page grew to six — so a correct
+# request for the workspace was quietly turned into an inline list.
+from .ui_emit import REGIONS
 
 log = structlog.get_logger()
 
@@ -61,6 +65,16 @@ class CapabilitiesShowTool(BaseTool):
             "pick from a tool's functions. The states are read live from the skill itself, "
             "so this is also the honest way to show that something is already running or "
             "unavailable. You choose WHICH skill and WHEN — you never describe how it looks."
+            "\n\n"
+            "OPENING A TOOL IS TWO CALLS, NOT ONE. When someone says 'open the captain's "
+            "log', they are asking to go somewhere, not to be told what it does. First "
+            "ui_emit {op:'workspace', id:<skill>, title:<name>, state:'open'} — that gives "
+            "the tool the screen and moves the conversation to the side. Then call this "
+            "with region:'workspace' so its functions appear INSIDE the tool. Dropping the "
+            "list in the stream answers the question and does not open anything: it "
+            "scrolls away from the tool it describes, and there is no tool there to put "
+            "away afterwards. Use the stream only when they asked what something CAN do "
+            "without asking to go there."
         )
 
     @property
@@ -91,8 +105,16 @@ class CapabilitiesShowTool(BaseTool):
                 },
                 "region": {
                     "type": "string",
-                    "enum": ["stream", "rail", "hero", "footer"],
-                    "description": "Where it goes. Default 'stream' (the centre).",
+                    "enum": ["stream", "rail", "hero", "footer",
+                             "workspace", "workspace_nav"],
+                    "description": (
+                        "Where it goes. Default 'stream' (the conversation). "
+                        "When someone asks to OPEN a tool — 'open the captain's log' — "
+                        "this belongs in 'workspace', not the stream: open the "
+                        "workspace with ui_emit first, then put the set in it. A list "
+                        "of what a tool does, dropped inline, scrolls away from the "
+                        "tool it describes. 'workspace_nav' is the tool's rail."
+                    ),
                 },
             },
             "required": ["skill"],
@@ -188,9 +210,17 @@ class CapabilitiesShowTool(BaseTool):
         heading = (title or manifests[skill].get("display_name") or skill).strip()
         if heading:
             block["title"] = heading[:80]
-        ops = [{"op": "upsert_block",
-                "region": region if region in ("stream", "rail", "hero", "footer") else "stream",
-                "block": block}]
+        # A region this tool did not recognise used to be silently rewritten to
+        # 'stream' — so asking for the workspace and getting an inline list looked
+        # like the page ignoring a correct request, with nothing anywhere saying why.
+        # Say it instead: the block still lands somewhere useful, and the reason it
+        # landed there comes back with it.
+        coerced = ""
+        if region not in REGIONS:
+            coerced = (f" (asked for region {region!r}, which is not a place on this "
+                       f"page; put it in the stream instead)")
+            region = "stream"
+        ops = [{"op": "upsert_block", "region": region, "block": block}]
 
         api_key = self.get_credential(self._binding_key())
         if not api_key:
@@ -219,7 +249,8 @@ class CapabilitiesShowTool(BaseTool):
             "shown": [{"id": i["id"], "title": i["title"], "state": i["state"]}
                       for i in items],
             "block_id": block["id"],
-            "status": "on the visitor's page",
+            "region": region,
+            "status": "on the visitor's page" + coerced,
             "note": ("Refer to these by name. To narrow to one, emit "
                      "{op:'focus', target:'" + block["id"] + "', item:'<id>'} — "
                      "the page owns the transition."),
