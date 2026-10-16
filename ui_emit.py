@@ -36,7 +36,7 @@ log = structlog.get_logger()
 # three.js runs through them, and an 11MB download the bot asked for by accident is
 # exactly how this surfaced.
 OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
-       "style", "animate", "move_block", "focus", "panel", "workspace"}
+       "style", "animate", "move_block", "focus", "panel", "workspace", "press"}
 
 # stage/camera drive the avatar. They were missing from this set while the page had
 # supported them all along, so every attempt to move her was dropped here and the bot
@@ -100,7 +100,11 @@ BUTTON_MODES = {"tap", "hold"}
 # me anything off the internet" a deliberate act rather than a default.
 MEDIA_ORIGINS: set[str] = set()
 ASSET_OK = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
-REGIONS = {"stream", "rail", "hero", "footer", "layer", "actions", "workspace"}
+# workspace_nav is the tool's own rail: the few things THIS tool does, in a column
+# that stays put while the surface scrolls. Putting a control there instead of inline
+# is what stops it scrolling away from the thing it acts on.
+REGIONS = {"stream", "rail", "hero", "footer", "layer", "actions",
+           "workspace", "workspace_nav"}
 ANCHORS = {"top-left", "top-center", "top-right",
            "center-left", "center", "center-right",
            "bottom-left", "bottom-center", "bottom-right"}
@@ -190,6 +194,19 @@ class UiEmitTool(BaseTool):
                         "     the WHOLE tool, not one block of it, and it comes back\n"
                         "     from its chip exactly as they left it.\n"
                         "     One tool at a time: opening another clears the surface.\n"
+                        "     A TOOL HAS TWO REGIONS. region:'workspace' is the\n"
+                        "     surface — what they are looking at. region:'workspace_nav'\n"
+                        "     is the tool's rail: the few things THIS tool can do, as\n"
+                        "     buttons, in a column that stays put while the surface\n"
+                        "     scrolls. Put a control there instead of inline and it is\n"
+                        "     still there after they read to the bottom. Three or four\n"
+                        "     items, not ten; a rail is a tool's verbs, not its menu.\n"
+                        "  {op:'press', action:<action id>} — show one of those controls\n"
+                        "     being used, when YOU did the thing it stands for. It does\n"
+                        "     not run anything: you have already done the work, and the\n"
+                        "     page deliberately does not fire the handler. Use it so a\n"
+                        "     surface changing under someone reads as an action and not\n"
+                        "     as a glitch — press 'search', THEN replace the surface.\n"
                         "  {op:'panel', target:<block id>,\n"
                         "     state:'full'|'open'|'minimized'|'closed'} — how much of\n"
                         "     the screen a surface gets, and whether it is put away.\n"
@@ -426,6 +443,14 @@ class UiEmitTool(BaseTool):
                     problems.append(
                         f"op {i} panel state {st!r} is not one of {sorted(PANEL_STATES)} "
                         f"— the page ignores it, so nothing moves")
+            if name == "press":
+                # Acknowledges a control you ALREADY used. It does not run anything —
+                # the page deliberately does not dispatch the handler, because you have
+                # done the work yourself and firing it would do it twice.
+                if not (op.get("action") or op.get("target")):
+                    problems.append(
+                        f"op {i} press needs the action id of the control to show — dropped")
+                    continue
             if name == "stage":
                 act = op.get("action")
                 if act not in STAGE_ACTIONS:
