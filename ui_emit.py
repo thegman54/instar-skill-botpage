@@ -79,10 +79,13 @@ EFFECTS = [
 BLOCKS = {"text", "heading", "list", "json", "image", "video", "button",
           "menu", "capability_set", "typed", "document", "items"}
 
-# A list of THINGS, as opposed to capability_set's list of things you can DO. Torrents,
-# library folders, search results, render jobs. The closed state set matters for the
-# same reason the page's does: an unknown state renders as plain, and a row that
-# silently loses its colour is worse than one that was never coloured.
+# A list of THINGS, as opposed to capability_set's list of things you can DO. Downloads,
+# folders, search hits, queued jobs — whatever a skill has several of. Deliberately not
+# named after any one skill: this file is the page's vocabulary and knows nothing about
+# what is installed, and a skill that wants its own rows says so in ITS OWN guide.
+# The closed state set matters for the same reason the page's does: an unknown state
+# renders as plain, and a row that silently loses its colour is worse than one that was
+# never coloured.
 ITEM_STATES = {"available", "active", "downloading", "seeding",
                "paused", "done", "error", "queued"}
 
@@ -269,8 +272,9 @@ class UiEmitTool(BaseTool):
                         "                  {type:'items',id,title?,items:[\n"
                         "                      {id,title,meta?:[..],state?,progress?}]}\n"
                         "                     A list of THINGS, where capability_set is\n"
-                        "                     a list of things you can DO. Torrents,\n"
-                        "                     library folders, search results, jobs.\n"
+                        "                     a list of things you can DO. Downloads,\n"
+                        "                     folders, search hits, queued jobs —\n"
+                        "                     whatever there are several of.\n"
                         "                     meta are short FACTS, each its own chip:\n"
                         "                     ['41.2 GB','8.4 MB/s','ETA 4m'] — not one\n"
                         "                     sentence, because three chips can be read\n"
