@@ -77,7 +77,14 @@ EFFECTS = [
     "zoom_in", "zoom_out", "pop", "bounce", "shake", "pulse", "flip", "drift_in",
 ]
 BLOCKS = {"text", "heading", "list", "json", "image", "video", "button",
-          "menu", "capability_set", "typed", "document"}
+          "menu", "capability_set", "typed", "document", "items"}
+
+# A list of THINGS, as opposed to capability_set's list of things you can DO. Torrents,
+# library folders, search results, render jobs. The closed state set matters for the
+# same reason the page's does: an unknown state renders as plain, and a row that
+# silently loses its colour is worse than one that was never coloured.
+ITEM_STATES = {"available", "active", "downloading", "seeding",
+               "paused", "done", "error", "queued"}
 
 # A button is DECLARED, never drawn. The bot says one should exist, what it says, where
 # it sits and what pressing it means; the page builds the element. That line is the
@@ -259,6 +266,25 @@ class UiEmitTool(BaseTool):
                         "                     Prefer this over a list for anything the\n"
                         "                     visitor might choose or you might invoke.\n"
                         "                     Saying an item's name focuses it, free.\n"
+                        "                  {type:'items',id,title?,items:[\n"
+                        "                      {id,title,meta?:[..],state?,progress?}]}\n"
+                        "                     A list of THINGS, where capability_set is\n"
+                        "                     a list of things you can DO. Torrents,\n"
+                        "                     library folders, search results, jobs.\n"
+                        "                     meta are short FACTS, each its own chip:\n"
+                        "                     ['41.2 GB','8.4 MB/s','ETA 4m'] — not one\n"
+                        "                     sentence, because three chips can be read\n"
+                        "                     at a glance and a sentence has to be\n"
+                        "                     parsed. Four or fewer.\n"
+                        "                     state: available active downloading\n"
+                        "                     seeding paused done error queued.\n"
+                        "                     progress is a NUMBER 0-100 (94, not '94%')\n"
+                        "                     and draws a bar. Send it only for things\n"
+                        "                     genuinely underway — a bar on a search\n"
+                        "                     result claims work that is not happening.\n"
+                        "                     Re-send the same id to refresh: rows move\n"
+                        "                     to their new places instead of the list\n"
+                        "                     being rebuilt under them.\n"
                         "                  {type:'menu',id,title?,items:[\n"
                         "                      {label,hint?,key?}]}\n"
                         "                     Options you are offering. Speaking one\n"
@@ -376,6 +402,8 @@ class UiEmitTool(BaseTool):
                     problems.extend(self._media_problems(i, block))
                 if block.get("type") == "button":
                     problems.extend(self._button_problems(i, block))
+                if block.get("type") == "items":
+                    problems.extend(self._items_problems(i, block))
             if name == "upsert_block":
                 block = op.get("block") or {}
                 place = block.get("place")
@@ -479,6 +507,34 @@ class UiEmitTool(BaseTool):
                     problems.append(f"op {i} font {font!r} is not one of {sorted(FONTS)}")
             clean.append(op)
         return clean, problems
+
+    def _items_problems(self, i: int, block: dict) -> list[str]:
+        """A list of objects. Says what it dropped and why, rather than rendering a
+        half-empty tile and leaving the bot to guess which field was wrong."""
+        out: list[str] = []
+        items = block.get("items")
+        if not isinstance(items, list) or not items:
+            return [f"op {i} items block has no items — nothing to show"]
+        if len(items) > 60:
+            out.append(f"op {i} items block has {len(items)} rows; only the first 60 "
+                       f"are shown. Filter before sending, so the cut is YOUR choice.")
+        for n, it in enumerate(items[:60]):
+            if not isinstance(it, dict):
+                out.append(f"op {i} item {n} is not an object — dropped")
+                continue
+            if not (it.get("title") or it.get("name")):
+                out.append(f"op {i} item {n} has no title — dropped")
+            st = it.get("state")
+            if st is not None and st not in ITEM_STATES:
+                out.append(
+                    f"op {i} item {n} state {st!r} is not one of {sorted(ITEM_STATES)} "
+                    f"— it renders plain, with no colour and no badge")
+            pg = it.get("progress")
+            if pg is not None and not isinstance(pg, (int, float)):
+                out.append(
+                    f"op {i} item {n} progress {pg!r} is not a number — no bar is drawn. "
+                    f"Send 94, not '94%'")
+        return out
 
     def _button_problems(self, i: int, block: dict) -> list[str]:
         """Explain anything the page will refuse or change about a declared control."""
