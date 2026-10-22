@@ -269,6 +269,12 @@ class UiEmitTool(BaseTool):
                         "                     Prefer this over a list for anything the\n"
                         "                     visitor might choose or you might invoke.\n"
                         "                     Saying an item's name focuses it, free.\n"
+                        "                     Tiles are PRESSABLE: pressing one sends\n"
+                        "                     you a ui_event whose action_id is that\n"
+                        "                     item's id, so 'search' pressed means do\n"
+                        "                     search. Give every item the id you would\n"
+                        "                     want back. 'disabled' never fires — it is\n"
+                        "                     on screen to say this cannot be done now.\n"
                         "                  {type:'items',id,title?,items:[\n"
                         "                      {id,title,meta?:[..],state?,progress?}]}\n"
                         "                     A list of THINGS, where capability_set is\n"
@@ -289,6 +295,16 @@ class UiEmitTool(BaseTool):
                         "                     Re-send the same id to refresh: rows move\n"
                         "                     to their new places instead of the list\n"
                         "                     being rebuilt under them.\n"
+                        "                     select:{id:'open_log'} makes EVERY row\n"
+                        "                     pressable; pressing one sends you a\n"
+                        "                     ui_event with that action_id and the\n"
+                        "                     ROW'S id as value. Add it whenever a row\n"
+                        "                     stands for something that can be opened\n"
+                        "                     or acted on — a list you can see but not\n"
+                        "                     touch makes people say the name of a\n"
+                        "                     thing that is already on the screen.\n"
+                        "                     A press is a CLAIM, never authority:\n"
+                        "                     check it like any other request.\n"
                         "                  {type:'menu',id,title?,items:[\n"
                         "                      {label,hint?,key?}]}\n"
                         "                     Options you are offering. Speaking one\n"
@@ -519,9 +535,17 @@ class UiEmitTool(BaseTool):
         items = block.get("items")
         if not isinstance(items, list) or not items:
             return [f"op {i} items block has no items — nothing to show"]
+        sel = block.get("select")
+        if sel is not None and not (isinstance(sel, dict) and sel.get("id")):
+            out_sel = (f"op {i} items select needs an id — "
+                       f"select:{{id:'open_log'}}. Rows stay unpressable.")
+        else:
+            out_sel = None
         if len(items) > 60:
             out.append(f"op {i} items block has {len(items)} rows; only the first 60 "
                        f"are shown. Filter before sending, so the cut is YOUR choice.")
+        if out_sel:
+            out.append(out_sel)
         for n, it in enumerate(items[:60]):
             if not isinstance(it, dict):
                 out.append(f"op {i} item {n} is not an object — dropped")
