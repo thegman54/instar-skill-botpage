@@ -258,7 +258,12 @@ class UiEmitTool(BaseTool):
                         "                     reveal is bounded, so length is not your\n"
                         "                     problem. Never for a caption nobody is\n"
                         "                     waiting to hear — that is just a delay.\n"
-                        "                  {type:'list',id,items:[...],ordered?} {type:'json',id,value}\n"
+                        "                  {type:'list',id,items:['a string','another'],ordered?}\n"
+                        "                     PLAIN STRINGS ONLY. An object here renders\n"
+                        "                     as the literal `[object Object]`, once per\n"
+                        "                     row. Rows with a title and a state go in an\n"
+                        "                     `items` block; one raw object goes in `json`.\n"
+                        "                  {type:'json',id,value}\n"
                         "                  {type:'capability_set',id,title?,items:[\n"
                         "                      {id,title,summary?,state}]}\n"
                         "                     WHAT YOU CAN DO, and what each part is\n"
@@ -424,6 +429,8 @@ class UiEmitTool(BaseTool):
                     problems.extend(self._button_problems(i, block))
                 if block.get("type") == "items":
                     problems.extend(self._items_problems(i, block))
+                if block.get("type") == "list":
+                    problems.extend(self._list_problems(i, block))
             if name == "upsert_block":
                 block = op.get("block") or {}
                 place = block.get("place")
@@ -562,6 +569,45 @@ class UiEmitTool(BaseTool):
                 out.append(
                     f"op {i} item {n} progress {pg!r} is not a number — no bar is drawn. "
                     f"Send 94, not '94%'")
+        return out
+
+    def _list_problems(self, i: int, block: dict) -> list[str]:
+        """A list of STRINGS. Every other interesting block type was checked and this one
+        was not, so an object sailed through and the frame rendered it with String(), which
+        on a dict is the literal text `[object Object]`.
+
+        Measured 2026-11-02: a ticket tracker drawn with eighteen rows, every one of them
+        reading `[object Object]`, on real data the bot had correctly fetched from Jira.
+        Nothing was broken except the shape, and nothing anywhere said so — the ops were
+        accepted, the relay was happy, and the screen was nonsense.
+
+        So this refuses the shape and names the block that takes objects, because "your
+        rows are objects" without "use `items`" is half an answer.
+        """
+        out: list[str] = []
+        items = block.get("items")
+        if not isinstance(items, list) or not items:
+            return [f"op {i} list block has no items — nothing to show"]
+        if len(items) > 60:
+            out.append(f"op {i} list block has {len(items)} rows; only the first 60 are "
+                       f"shown. Filter before sending, so the cut is YOUR choice.")
+        structured = 0
+        for n, it in enumerate(items[:60]):
+            if isinstance(it, (dict, list)):
+                structured += 1
+                if structured <= 3:
+                    out.append(
+                        f"op {i} list item {n} is a {type(it).__name__}, not a string — it "
+                        f"renders as the literal text `[object Object]`")
+            elif it is None:
+                out.append(f"op {i} list item {n} is null — it renders as an empty bullet")
+        if structured:
+            out.append(
+                f"op {i}: {structured} of {min(len(items), 60)} list rows are objects. A "
+                f"`list` block takes PLAIN STRINGS. For rows with a title, a state and a "
+                f"badge use a `items` block instead — {{type:'items', id, items:[{{title, "
+                f"subtitle?, state?, meta?}}]}} — or `json` to show one object raw. "
+                f"Formatting each row into a sentence yourself also works and reads better.")
         return out
 
     def _button_problems(self, i: int, block: dict) -> list[str]:
