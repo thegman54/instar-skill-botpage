@@ -206,9 +206,10 @@ class ImageCreateTool(BaseTool):
 
         # optional_stack means a preflight refusal runs us degraded instead of failing the
         # call. There is no degraded way to draw a picture, so say why and stop.
-        if self.stack_degraded:
+        degraded = self.stack_degraded()      # a method, not a property — `if self.x:` is always true
+        if degraded:
             return ToolResult.fail(
-                f"The image GPU stack is unavailable: {self.stack_degraded}. "
+                f"The image GPU stack is unavailable: {degraded}. "
                 f"Nothing can be generated until it comes back.")
 
         async with httpx.AsyncClient(timeout=60.0) as client:
