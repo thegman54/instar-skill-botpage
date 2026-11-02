@@ -31,7 +31,7 @@ import structlog
 
 from ..base import BaseTool, ToolResult
 from ..registry import register_tool
-from .botpage_publish import relay_origin
+from .botpage_publish import relay_bot_slug, relay_origin
 
 log = structlog.get_logger()
 
@@ -152,7 +152,7 @@ class ChatLinkCreateTool(BaseTool):
         if isinstance(ttl, int):
             payload["ttl_hours"] = ttl
 
-        url = f"{relay}/bots/{slug}/chat-links"
+        url = f"{relay}/bots/{await relay_bot_slug(slug)}/chat-links"
         log.info("chat_link_create", slug=slug, subject=subject_label,
                  bind=payload["bind_on_first_use"], hints=len(payload.get("hints", [])))
 

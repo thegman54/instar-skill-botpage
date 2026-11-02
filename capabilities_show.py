@@ -30,7 +30,7 @@ import structlog
 
 from ..base import BaseTool, ToolResult
 from ..registry import register_tool
-from .botpage_publish import relay_origin
+from .botpage_publish import relay_bot_slug, relay_origin
 # ONE list of regions, imported rather than restated. This file kept its own
 # copy, which stayed at four entries while the page grew to six — so a correct
 # request for the workspace was quietly turned into an inline list.
@@ -232,7 +232,7 @@ class CapabilitiesShowTool(BaseTool):
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.post(
-                    f"{relay}/bots/{slug}/ui",
+                    f"{relay}/bots/{await relay_bot_slug(slug)}/ui",
                     json={"session_id": session_id, "ops": ops},
                     headers={"Authorization": f"Bearer {api_key}",
                              "Content-Type": "application/json"},

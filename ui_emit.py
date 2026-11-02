@@ -25,7 +25,7 @@ import structlog
 
 from ..base import BaseTool, ToolResult
 from ..registry import register_tool
-from .botpage_publish import relay_origin
+from .botpage_publish import relay_bot_slug, relay_origin
 
 log = structlog.get_logger()
 
@@ -725,7 +725,7 @@ class UiEmitTool(BaseTool):
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.post(
-                    f"{relay}/bots/{slug}/ui",
+                    f"{relay}/bots/{await relay_bot_slug(slug)}/ui",
                     json={"session_id": session_id, "ops": clean},
                     headers={"Authorization": f"Bearer {api_key}",
                              "Content-Type": "application/json"},

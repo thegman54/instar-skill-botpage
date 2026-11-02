@@ -33,7 +33,7 @@ import structlog
 
 from ..base import BaseTool, ToolResult
 from ..registry import register_tool
-from .botpage_publish import relay_origin
+from .botpage_publish import relay_bot_slug, relay_origin
 
 log = structlog.get_logger()
 
@@ -264,7 +264,7 @@ class ImageCreateTool(BaseTool):
             b64 = base64.b64encode(data).decode()
             try:
                 p = await client.put(
-                    f"{relay}/bots/{slug}/assets",
+                    f"{relay}/bots/{await relay_bot_slug(slug)}/assets",
                     headers={"Authorization": f"Bearer {api_key}"},
                     json={"assets": {name: b64}}, timeout=120.0)
             except Exception as e:

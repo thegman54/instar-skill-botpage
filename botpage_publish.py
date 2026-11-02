@@ -43,6 +43,54 @@ def relay_origin(value: Optional[str]) -> str:
         url = "http://" + url[len("ws://"):]
     return url
 
+
+# ---------------------------------------------------------------------------------
+# THE RELAY KEYS ON THE BOT SLUG, NOT THE PROFILE SLUG.
+#
+# Every tool in this package built its URL as /bots/{profile_slug}/..., which is right
+# for `seven`, `hal`, `karen` and `dora_s_map` only because each of those profiles is
+# bound to a bot of the same name. The Cenora coordinator is profile `fleet_cen_alex`
+# bound to bot `alex-cenora`, and on 2026-11-02 the relay answered **401 for every key**
+# on /bots/fleet_cen_alex/ — it has never heard of that name. The bot reported it as a
+# credential fault, which is what a bare 401 looks like from the inside.
+#
+# The key was never wrong: BINDING_REGISTERABOT_FLEET_CEN_ALEX_API_KEY and
+# BINDING_REGISTERABOT_ALEX_CENORA_API_KEY hold the SAME value and either authenticates
+# the bot-slug path. Only the slug in the URL was wrong.
+#
+# So: read the binding instead of guessing. `interface_bindings` on bot_profiles is a
+# list of {bot_slug, interface}; the registerabot entry owns the chat surface. Falling
+# back to the profile slug is correct wherever the two names agree, which is everywhere
+# this worked before.
+_BOT_SLUG_CACHE: dict[str, str] = {}
+
+
+async def relay_bot_slug(profile_slug: Optional[str]) -> str:
+    """The slug the relay knows this profile's bot by."""
+    slug = (profile_slug or "").strip()
+    if not slug:
+        return slug
+    if slug in _BOT_SLUG_CACHE:
+        return _BOT_SLUG_CACHE[slug]
+    resolved = slug
+    try:
+        from ...db import get_pool
+        pool = get_pool()
+        if pool is not None:
+            async with pool.acquire() as conn:
+                raw = await conn.fetchval(
+                    "SELECT interface_bindings FROM bot_profiles WHERE slug = $1", slug)
+            bindings = json.loads(raw) if isinstance(raw, str) else (raw or [])
+            for b in bindings:
+                if isinstance(b, dict) and b.get("interface") == "registerabot" \
+                        and b.get("bot_slug"):
+                    resolved = str(b["bot_slug"])
+                    break
+    except Exception as e:                                            # noqa: BLE001
+        log.warning("relay_bot_slug_lookup_failed", profile=slug, error=str(e))
+    _BOT_SLUG_CACHE[slug] = resolved
+    return resolved
+
 # Mirrors relay/src/bot-profile.ts. Kept in sync by hand; the relay is authoritative
 # and will reject anything these miss.
 LAYOUTS = {"bubbles", "poster", "comic"}
@@ -251,7 +299,7 @@ class BotPagePublishTool(BaseTool):
                 "Shorten the blurb or drop some prompts."
             )
 
-        url = f"{relay}/bots/{slug}/profile"
+        url = f"{relay}/bots/{await relay_bot_slug(slug)}/profile"
         log.info("botpage_publish", slug=slug, bytes=size, layout=theme.get("layout"))
 
         try:

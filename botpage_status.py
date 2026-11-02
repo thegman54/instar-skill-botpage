@@ -17,7 +17,7 @@ log = structlog.get_logger()
 
 DEFAULT_RELAY = "https://relay.registerabot.com"
 
-from .botpage_publish import relay_origin  # shared: REGISTERABOT_RELAY_URL is a wss:// url
+from .botpage_publish import relay_bot_slug, relay_origin  # shared: REGISTERABOT_RELAY_URL is a wss:// url
 
 
 @register_tool
@@ -55,7 +55,7 @@ class BotPageStatusTool(BaseTool):
         relay = relay_origin(self.get_credential("REGISTERABOT_RELAY_URL"))
         # Cache-bust: the edge can hold a 404 from before the page was published,
         # which would otherwise report "not published" for a page that is live.
-        url = f"{relay}/b/{slug}"
+        url = f"{relay}/b/{await relay_bot_slug(slug)}"
         try:
             async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
                 resp = await client.get(url, params={"_cb": "status"})

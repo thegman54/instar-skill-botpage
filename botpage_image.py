@@ -27,7 +27,7 @@ import structlog
 
 from ..base import BaseTool, ToolResult
 from ..registry import register_tool
-from .botpage_publish import relay_origin
+from .botpage_publish import relay_bot_slug, relay_origin
 
 log = structlog.get_logger()
 
@@ -119,7 +119,7 @@ class BotPageImageTool(BaseTool):
         if not api_key:
             return ToolResult.fail(f"{key_name} is not set.")
         relay = relay_origin(self.get_credential("REGISTERABOT_RELAY_URL"))
-        base = f"{relay}/bots/{slug}/assets"
+        base = f"{relay}/bots/{await relay_bot_slug(slug)}/assets"
         headers = {"Authorization": f"Bearer {api_key}"}
 
         if action in ("put", "delete"):
