@@ -22,8 +22,6 @@ somewhere the page can reach, and the name is what crosses the wire.
 
 import asyncio
 import base64
-import json
-import os
 import re
 import time
 import uuid
@@ -39,7 +37,6 @@ log = structlog.get_logger()
 
 STACK = "map-imagen"
 COMFY = "http://map-imagen:8188"
-EXECUTOR = os.environ.get("TOOL_EXECUTOR_URL", "http://localhost:8081")
 CHECKPOINT = "sd_xl_base_1.0.safetensors"
 NAME_OK = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
@@ -54,7 +51,7 @@ SIZES = {
 # Everything the stack has to do before it can draw: container up, ComfyUI boot, then a
 # 6.5GB checkpoint off disk into VRAM on the first generation. Cold is minutes, warm is
 # seconds, and the difference is entirely the first call.
-STACK_WAIT_S = 180
+READY_WAIT_S = 120
 GEN_WAIT_S = 300
 
 
@@ -91,9 +88,24 @@ def _graph(prompt: str, negative: str, w: int, h: int, steps: int, seed: int) ->
 class ImageCreateTool(BaseTool):
     """Generate an image on our own GPU and publish it to this bot's page."""
 
+    # The executor starts this before execute() runs, in-process. This tool used to POST
+    # to the executor's own /stacks/{name}/start from inside a request the executor was
+    # serving — and the executor serves requests one at a time, so the inner call could
+    # not be accepted until the outer one returned. It deadlocked until the inner POST
+    # timed out 120s later, and the stack then came up with nobody waiting on it.
+    requires_stack = STACK
+    optional_stack = True          # GPU stack: preflight can legitimately refuse it
+
     @property
     def name(self) -> str:
         return "image_create"
+
+    @property
+    def timeout_seconds(self) -> int:
+        # Cold: container boot + ComfyUI + a 6.5GB checkpoint into VRAM, then the render.
+        # Warm: ~15s. The caller has to be willing to wait for the cold case or the first
+        # call of the day can never succeed.
+        return READY_WAIT_S + GEN_WAIT_S + 60
 
     @property
     def description(self) -> str:
@@ -154,21 +166,13 @@ class ImageCreateTool(BaseTool):
     def credential_keys(self) -> list[str]:
         return [self._binding_key(), "REGISTERABOT_RELAY_URL"]
 
-    async def _ensure_stack(self, client: httpx.AsyncClient) -> str | None:
-        """Bring the GPU stack up if it is down. Returns an error string, or None."""
-        try:
-            r = await client.get(f"{COMFY}/system_stats", timeout=5.0)
-            if r.status_code == 200:
-                return None                       # already warm
-        except Exception:
-            pass
+    async def _wait_ready(self, client: httpx.AsyncClient) -> str | None:
+        """Wait for ComfyUI to answer. Returns an error string, or None.
 
-        try:
-            await client.post(f"{EXECUTOR}/stacks/{STACK}/start", timeout=120.0)
-        except Exception as e:
-            return f"could not ask the executor to start {STACK}: {e}"
-
-        deadline = time.time() + STACK_WAIT_S
+        The executor has already run `docker-compose up` for us by this point, but it
+        returns as soon as compose does — the server inside still has to boot.
+        """
+        deadline = time.time() + READY_WAIT_S
         while time.time() < deadline:
             try:
                 r = await client.get(f"{COMFY}/system_stats", timeout=5.0)
@@ -176,9 +180,9 @@ class ImageCreateTool(BaseTool):
                     return None
             except Exception:
                 pass
-            await asyncio.sleep(3)
-        return (f"{STACK} did not come up within {STACK_WAIT_S}s. It is an optional GPU "
-                f"stack — if the GPU or disk is unavailable the preflight blocks it.")
+            await asyncio.sleep(2)
+        return (f"{STACK} did not answer within {READY_WAIT_S}s of being started. "
+                f"The container is up but ComfyUI is not serving.")
 
     async def execute(self, prompt: str = "", name: str = "", negative: str = "",
                       size: str = "square", steps: int = 20, **kwargs) -> ToolResult:
@@ -200,8 +204,15 @@ class ImageCreateTool(BaseTool):
             return ToolResult.fail(f"{self._binding_key()} is not set.")
         relay = relay_origin(self.get_credential("REGISTERABOT_RELAY_URL"))
 
+        # optional_stack means a preflight refusal runs us degraded instead of failing the
+        # call. There is no degraded way to draw a picture, so say why and stop.
+        if self.stack_degraded:
+            return ToolResult.fail(
+                f"The image GPU stack is unavailable: {self.stack_degraded}. "
+                f"Nothing can be generated until it comes back.")
+
         async with httpx.AsyncClient(timeout=60.0) as client:
-            err = await self._ensure_stack(client)
+            err = await self._wait_ready(client)
             if err:
                 return ToolResult.fail(err)
 
