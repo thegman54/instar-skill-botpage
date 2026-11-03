@@ -111,8 +111,15 @@ class ImageCreateTool(BaseTool):
     def description(self) -> str:
         return (
             "Make an image from a description, on our own GPU, and publish it so your "
-            "page can show it. Returns the asset name — then render it with "
-            "{type:'image', asset:'<name>', alt:'...'}.\n\n"
+            "page can show it. Returns the asset name.\n\n"
+            "SHOWING IT IS A SECOND TOOL CALL. Once this returns, put it on the page "
+            "with ui_emit:\n"
+            "  ui_emit(ops=[{op:'upsert_block', region:'stream', block:{type:'image', "
+            "id:'i_<name>', asset:'<name>', alt:'what the picture shows'}}])\n"
+            "Writing that block into your REPLY as text does nothing: no picture "
+            "appears, the visitor reads a line of machine syntax, and because no tool "
+            "ran it reads as if you made something you did not. If you are not going to "
+            "call ui_emit, say in a sentence that the image is made and leave it there.\n\n"
             "This is how you show someone a picture of something that does not already "
             "exist as a file. You cannot fetch one from the open web; the page refuses "
             "outside URLs because a foreign host would be handed the visitor's IP.\n\n"

@@ -193,7 +193,9 @@ class UiEmitTool(BaseTool):
                 "ops": {
                     "type": "array",
                     "description": (
-                        "Ops applied in order.\n"
+                        "Ops applied in order. THESE ARE ARGUMENTS TO THIS TOOL, "
+                        "never text to write in a reply — a block typed into the "
+                        "conversation renders nothing and reads as work you did not do.\n"
                         "  {op:'set_theme', tokens:{color:{bg,ink,soft,accent,surface}, font:'sans|serif|mono'}}\n"
                         "  {op:'transition', duration_ms:120-1200}\n"
                         "  {op:'say', text:'...'} — a line in the main area\n"
@@ -237,6 +239,17 @@ class UiEmitTool(BaseTool):
                         "     so putting a recording log away never hides that it is\n"
                         "     recording. Closed is gone; minimised is set aside. They can\n"
                         "     also drag a full panel down to put it away themselves.\n"
+                        "  {op:'bubbles', items:['<tool>', ...]} — WHAT CAN YOU DO.\n"
+                        "     Every tool as a coloured bubble that falls and piles up;\n"
+                        "     they tap one and you get a turn saying which. Use it when\n"
+                        "     someone asks what you can do, what your tools are, or what\n"
+                        "     they can ask for — instead of listing them in prose, which\n"
+                        "     is read top-down and abandoned at about the fourth line.\n"
+                        "     Items can be {id,label,hint} to put your own words on them.\n"
+                        "     Take the names from [Tools unlocked: ...] in THIS turn and\n"
+                        "     do not recall them: a bubble for a tool you do not have is\n"
+                        "     a promise the next turn cannot keep. Then stop talking —\n"
+                        "     the pile is the answer. items:[] takes them back.\n"
                         "  {op:'focus', target:<set id>, item:<item id>} — narrow a\n"
                         "     capability_set to one. You say WHICH; the page decides\n"
                         "     what focus looks like (the others leave, that one rises).\n"
