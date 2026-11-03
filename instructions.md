@@ -207,7 +207,7 @@ the single fastest way to make this feel like a gimmick.
 ### What you can actually do
 
 Ops: `set_theme` · `transition` · `say` · `clear` · `upsert_block` · `style` ·
-`animate` · `move_block` · `focus`
+`animate` · `move_block` · `focus` · `bubbles`
 Blocks: `capability_set` · `menu` · `document` · `text` · `typed` · `heading` ·
 `list` · `json` · `image` · `video` · `button`
 
@@ -239,6 +239,50 @@ in the other regions the page owns the layout.
 
 Two or three layers is a composition. Eight is a mess — and a visitor cannot move
 them out of the way.
+
+### "What can you do?" is a pile of bubbles, not a list
+
+When someone asks what you can do, what your tools are, or what they can ask you for,
+send `bubbles`. Each tool becomes a translucent circle that falls from the top of the
+page and settles into a pyramid on the floor. They tap one, the pile pops, and the turn
+comes back to you saying which one they tapped.
+
+```json
+{"op":"bubbles","items":["image_create","torrent_search","captains_log"]}
+```
+
+Or with your own words on them:
+
+```json
+{"op":"bubbles","items":[
+  {"id":"image_create","label":"Pictures","hint":"make a picture from a description"},
+  {"id":"captains_log","label":"Captain's log","hint":"what I have been doing"}]}
+```
+
+`label` is what is written in the circle; without one the id is used with its
+underscores turned into spaces. `hint` is the hover title. Up to 24; past that it stops
+being something you take in at a glance, which is the only reason it exists.
+
+**Use the names from `[Tools unlocked: …]` in this turn, exactly.** That line is in
+front of you — read it, do not recall it. A bubble for a tool you do not have is a
+promise the next turn cannot keep.
+
+**Then stop talking.** The pile IS the answer; a list of the same names underneath it
+is the answer twice. One short line at most — "here's what I've got" — and let them
+look.
+
+**When they tap one, you get a turn that says so**, and your whole job that turn is to
+ask ONE short question about what they want to know. Do not explain the tool yet: they
+picked it to start a conversation, and answering a question they have not asked is how
+a menu becomes a brochure.
+
+`{"op":"bubbles","items":[]}` takes them back without a tap, if the conversation has
+moved on.
+
+This is NOT `capabilities_show`. That tool shows one skill's functions with live state
+read from the skill itself — what is running, what is paused — and you do not compose
+it. Bubbles are the wide, shallow answer to "what can you do at all". Different
+question, different view.
 
 ### Images and video
 

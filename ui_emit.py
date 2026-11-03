@@ -36,7 +36,12 @@ log = structlog.get_logger()
 # three.js runs through them, and an 11MB download the bot asked for by accident is
 # exactly how this surfaced.
 OPS = {"set_theme", "transition", "say", "clear", "upsert_block",
-       "style", "animate", "move_block", "focus", "panel", "workspace", "press"}
+       "style", "animate", "move_block", "focus", "panel", "workspace", "press",
+       "bubbles"}
+
+# How many capability bubbles the page will draw. Past this it stops being a thing you
+# take in at a glance, which is the only reason the view exists.
+MAX_BUBBLES = 24
 
 # stage/camera drive the avatar. They were missing from this set while the page had
 # supported them all along, so every attempt to move her was dropped here and the bot
@@ -447,6 +452,18 @@ class UiEmitTool(BaseTool):
                                 f"op {i} has a place but region is "
                                 f"{op.get('region','stream')!r} — placement only applies "
                                 f"in region 'layer'")
+            if name == "bubbles":
+                items = op.get("items")
+                if items is None or (isinstance(items, list) and not items):
+                    pass                     # an empty list is how you take them back
+                elif not isinstance(items, list):
+                    problems.append(f"op {i} bubbles items must be an array — dropped")
+                    continue
+                elif len(items) > MAX_BUBBLES:
+                    problems.append(
+                        f"op {i} has {len(items)} bubbles; the page draws "
+                        f"{MAX_BUBBLES} — trimmed")
+                    op["items"] = items[:MAX_BUBBLES]
             if name in ("upsert_block", "clear", "move_block"):
                 region = op.get("region", "stream")
                 if region not in REGIONS:
