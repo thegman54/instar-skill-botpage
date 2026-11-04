@@ -23,6 +23,7 @@ A skill that does not implement the hook simply does not answer; it is not an er
 there is nothing to draw.
 """
 
+import re
 from typing import Any, Optional
 
 import httpx
@@ -94,6 +95,20 @@ class CapabilitiesShowTool(BaseTool):
                         "One skill: this is the view for working INSIDE a tool."
                     ),
                 },
+                "named_as": {
+                    "type": "string",
+                    "description": (
+                        "THE VISITOR'S OWN WORDS for the tool they named — 'the "
+                        "captain's log', 'flight deck', 'the board'. Quote them; do "
+                        "not translate into the installed name.\n"
+                        "If they did not name a tool — 'what can you do', 'what are "
+                        "your tools', 'what is this' — there is nothing honest to put "
+                        "here, and that is the signal: it is the WRONG TOOL. Call "
+                        "ui_emit {op:'bubbles'} instead. Writing the skill name here "
+                        "to get past this field is inventing a request they did not "
+                        "make, and it is checked."
+                    ),
+                },
                 "title": {
                     "type": "string",
                     "description": (
@@ -122,7 +137,7 @@ class CapabilitiesShowTool(BaseTool):
                     ),
                 },
             },
-            "required": ["skill"],
+            "required": ["skill", "named_as"],
         }
 
     def _binding_key(self) -> str:
@@ -173,8 +188,37 @@ class CapabilitiesShowTool(BaseTool):
             items.append(item)
         return items
 
+    # Words that name no thing. A question built only from these is ABOUT THE BOT, not
+    # about a tool — which is the one case this gate exists to catch.
+    _NAMES_NOTHING = {
+        "what", "whats", "which", "who", "how", "can", "could", "would", "will", "you",
+        "your", "yours", "youre", "its", "the", "this", "that", "these", "those", "and",
+        "all", "any", "for", "with", "from", "are", "was", "does", "did", "have", "has",
+        "got", "get", "show", "tell", "give", "list", "see", "look", "know", "about",
+        "everything", "anything", "something", "stuff", "things", "thing", "tool",
+        "tools", "capability", "capabilities", "feature", "features", "able", "help",
+        "here", "now", "please", "there", "they", "them", "else", "more", "much",
+    }
+
+    @classmethod
+    def _names_this_skill(cls, named_as: str, skill: str, display: str) -> bool:
+        """Did the visitor's words point at a TOOL, or at the bot itself?
+
+        Deliberately not a match against the skill's installed name. A visitor calls it
+        the flight deck; the skill is called 'fleet'. Requiring those to overlap refuses
+        the very request this tool is for — which is a worse failure than the one being
+        prevented, because it has no better answer waiting.
+
+        So the test is the other way round: strip the words that name nothing, and see
+        whether anything is left. 'the flight deck' leaves {flight, deck}. 'what can you
+        do' leaves nothing at all, and nothing is exactly what it names.
+        """
+        words = {w for w in re.split(r"[^a-z0-9]+", (named_as or "").lower())
+                 if len(w) > 2 and w not in cls._NAMES_NOTHING}
+        return bool(words)
+
     async def execute(self, skill: str, title: str = "", block_id: str = "caps",
-                      region: str = "stream", **kwargs) -> ToolResult:
+                      region: str = "stream", named_as: str = "", **kwargs) -> ToolResult:
         from .. import fire_hook, get_manifests, get_skill_hooks
 
         slug = self._profile_slug
@@ -187,6 +231,20 @@ class CapabilitiesShowTool(BaseTool):
             # Name the alternatives. "not found" with 36 skills installed is a dead end.
             return ToolResult.fail(
                 f"No skill called '{skill}'. Installed: {sorted(manifests)[:40]}")
+        # THE GATE. A wide question has a better answer than this tool, and the tool
+        # succeeding is what stops anyone reaching it — before the fleet skill declared
+        # capabilities this failed and sent her to bubbles; the moment it worked, every
+        # "what can you do" started coming out as a list of rectangles in the stream.
+        # Which is the shape the bubbles exist to replace.
+        display = str((manifests.get(skill) or {}).get("display_name") or "")
+        if not self._names_this_skill(named_as, skill, display):
+            return ToolResult.fail(
+                f"{named_as!r} names no tool, so this is a WIDE "
+                "question about you, not a question about one tool. Call ui_emit "
+                "{op:'bubbles'} with the capabilities you have unlocked and let the "
+                "pile be the answer. Do not list them in prose, and do not retry this "
+                "tool with a different wording.")
+
         if get_skill_hooks(skill) is None:
             return ToolResult.fail(
                 f"'{skill}' does not declare capabilities, so there is nothing to ask it "
