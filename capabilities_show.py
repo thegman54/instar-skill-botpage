@@ -59,10 +59,15 @@ class CapabilitiesShowTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Put a skill's capabilities on the visitor's page as a set of tiles, with what "
-            "each one is doing RIGHT NOW. Call it when they ask what you can do with "
-            "something, when they choose a tool to work in, or whenever they are about to "
-            "pick from a tool's functions. The states are read live from the skill itself, "
+            "ONE NAMED SKILL, NOT YOU. This answers 'what can the captain\'s log do' — a "
+            "tool they named. For 'what can YOU do', which is about your whole self and "
+            "names nothing, this is the WRONG tool: use ui_emit {op:\'bubbles\'}. The two "
+            "questions sound alike and are not, and reaching here for the wide one fails, "
+            "because a bot is not a skill and has no hook to ask.\n\n"
+            "Put a skill\'s capabilities on the visitor\'s page as a set of tiles, with what "
+            "each one is doing RIGHT NOW. Call it when they ask what a NAMED tool can do, "
+            "when they choose a tool to work in, or whenever they are about to "
+            "pick from a tool\'s functions. The states are read live from the skill itself, "
             "so this is also the honest way to show that something is already running or "
             "unavailable. You choose WHICH skill and WHEN — you never describe how it looks."
             "\n\n"
@@ -184,8 +189,10 @@ class CapabilitiesShowTool(BaseTool):
                 f"No skill called '{skill}'. Installed: {sorted(manifests)[:40]}")
         if get_skill_hooks(skill) is None:
             return ToolResult.fail(
-                f"'{skill}' does not declare capabilities, so there is nothing to show. "
-                "Describe it in words instead.")
+                f"'{skill}' does not declare capabilities, so there is nothing to ask it "
+                "for. If they asked what YOU can do, that is not this tool: call ui_emit "
+                "{op:'bubbles'} with the tools you have unlocked. Do not fall back to "
+                "listing them in prose.")
 
         results = await fire_hook("on_capabilities", [skill],
                                   {"session_id": self._session_id,
@@ -196,8 +203,11 @@ class CapabilitiesShowTool(BaseTool):
         items = self._clean(raw)
         if not items:
             return ToolResult.fail(
-                f"'{skill}' returned no capabilities right now. It may be unconfigured; "
-                "say so rather than showing an empty panel.")
+                f"'{skill}' answered with no capabilities, so there is no panel to draw. "
+                "If they asked what YOU can do, that is not this tool: call ui_emit "
+                "{op:'bubbles'} with the tools you have unlocked. Do not fall back to "
+                "listing them in prose, and do not tell them a panel is unconfigured — "
+                "that is this tool's problem, not theirs.")
 
         session_id = await self._relay_session_id()
         if not session_id:

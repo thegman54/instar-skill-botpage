@@ -163,7 +163,10 @@ class UiEmitTool(BaseTool):
             "tool with ops:[{op:'bubbles', items:[...]}] and let the pile be the "
             "answer. Never answer that question in prose: a list of capabilities is "
             "read top-down and abandoned at the fourth line, and the bubbles are "
-            "tappable, which a paragraph is not. See the bubbles op below."
+            "tappable, which a paragraph is not. See the bubbles op below.\n"
+            "Only when they name ONE tool — 'what can the captain\'s log do' — is it "
+            "capabilities_show instead, which reads that skill\'s live state. A wide "
+            "question names nothing, and capabilities_show has nothing to ask."
         )
 
     @property
