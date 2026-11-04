@@ -248,8 +248,13 @@ class UiEmitTool(BaseTool):
                         "     so putting a recording log away never hides that it is\n"
                         "     recording. Closed is gone; minimised is set aside. They can\n"
                         "     also drag a full panel down to put it away themselves.\n"
-                        "  {op:'bubbles', items:['<tool>', ...]} — WHAT CAN YOU DO.\n"
-                        "     Every tool as a coloured bubble that falls and piles up;\n"
+                        "  {op:'bubbles', items:['<job>', ...]} — WHAT CAN YOU DO.\n"
+                        "     NOT ONE BUBBLE PER TOOL. A belt of 77 tools is not 77\n"
+                        "     things a person can ask for; it is about a dozen jobs\n"
+                        f"     with several tools behind each. The cap is {MAX_BUBBLES}\n"
+                        "     and going over is REFUSED, not trimmed — hitting it\n"
+                        "     means you listed the belt instead of reading it.\n"
+                        "     Each job as a coloured bubble that falls and piles up;\n"
                         "     they tap one and you get a turn saying which. Use it when\n"
                         "     someone asks what you can do, what your tools are, or what\n"
                         "     they can ask for — instead of listing them in prose, which\n"
@@ -488,10 +493,22 @@ class UiEmitTool(BaseTool):
                     problems.append(f"op {i} bubbles items must be an array — dropped")
                     continue
                 elif len(items) > MAX_BUBBLES:
+                    # REFUSED, not trimmed. Trimming looks like it worked, so the honest
+                    # thing left to say was "here is a sample of what I can do" — which
+                    # is a worse answer than prose, because a pile that is secretly
+                    # partial invites someone to conclude the missing thing is missing.
+                    # The real mistake is upstream anyway: 77 raw tool names is not a
+                    # list of capabilities, and no cap makes it one.
                     problems.append(
-                        f"op {i} has {len(items)} bubbles; the page draws "
-                        f"{MAX_BUBBLES} — trimmed")
-                    op["items"] = items[:MAX_BUBBLES]
+                        f"op {i} has {len(items)} bubbles and the page draws "
+                        f"{MAX_BUBBLES}. REFUSED rather than trimmed — a partial pile "
+                        "presented as the answer is worse than no pile. Group them "
+                        "into the JOBS a visitor would ask for ('trace a column across "
+                        "repos', 'check if a fix shipped'), one bubble per job, "
+                        "several tools behind each. If that still exceeds "
+                        f"{MAX_BUBBLES}, you are still listing tools rather than "
+                        "naming what you do with them.")
+                    continue
             if name in ("upsert_block", "clear", "move_block"):
                 region = op.get("region", "stream")
                 if region not in REGIONS:
